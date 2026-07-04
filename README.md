@@ -77,3 +77,5 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 ## Roadmap
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
+
+**Next agent:** start with [docs/handoff/phase-1.md](docs/handoff/phase-1.md).
