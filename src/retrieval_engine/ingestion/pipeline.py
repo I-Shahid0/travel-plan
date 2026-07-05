@@ -24,6 +24,7 @@ from retrieval_engine.ingestion.split import assign_eval_split
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 5_000
+PROGRESS_EVERY = 100_000
 MAX_SNIPPETS_PER_BUSINESS = 5
 MAX_REVIEW_TEXT_CHARS = 8_000
 
@@ -187,6 +188,8 @@ def ingest_reviews(
             accumulator.flush_to_db(session)
             session.commit()
             interaction_rows.clear()
+            if count % PROGRESS_EVERY == 0:
+                logger.info("Review progress: %s interactions ingested", count)
 
     if interaction_rows:
         session.execute(insert(Interaction).values(interaction_rows).on_conflict_do_nothing())
