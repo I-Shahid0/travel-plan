@@ -13,6 +13,7 @@ htmlcov/
 
 # Local data (large Yelp JSONL files)
 data/archive/*.json
+data/beir/
 
 # Docker volumes
 postgres_data/

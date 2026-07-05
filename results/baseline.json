@@ -1,0 +1,32 @@
+[
+  {
+    "phase": 1,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "timestamp": "2026-07-05T03:46:15.134532+00:00",
+    "beir_scifact": {
+      "ndcg@10": 0.6450816521455776,
+      "recall@10": 0.7833333333333333,
+      "mrr": 0.6109678843408566,
+      "queries": 300.0
+    }
+  },
+  {
+    "phase": 1,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "timestamp": "2026-07-05T21:27:50.450654+00:00",
+    "beir_scifact": {
+      "ndcg@10": 0.6238596288000934,
+      "recall@10": 0.7743333333333333,
+      "mrr": 0.5845768694116393,
+      "queries": 300.0
+    },
+    "yelp_implicit": {
+      "ndcg@10": 0.07881018547877529,
+      "recall@10": 0.1146,
+      "mrr": 0.06782309523809524,
+      "queries": 10000.0,
+      "sample_size": 10000.0,
+      "skipped": 0.0
+    }
+  }
+]
