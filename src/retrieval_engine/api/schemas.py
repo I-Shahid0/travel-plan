@@ -17,6 +17,7 @@ class SearchResponse(BaseModel):
     query: str
     total: int
     results: list[ListingResult]
+    mode: str = "dense"
 
 
 class HealthResponse(BaseModel):

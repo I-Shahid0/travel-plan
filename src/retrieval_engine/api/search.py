@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from retrieval_engine.api.schemas import ListingResult
 from retrieval_engine.db.models import Listing
+from retrieval_engine.retrieval.dense import listing_to_result
 
 
 async def keyword_search(
@@ -45,18 +46,5 @@ async def keyword_search(
     )
     rows = (await session.execute(stmt)).scalars().all()
 
-    results = [
-        ListingResult(
-            id=row.id,
-            title=row.title,
-            description=row.description,
-            categories=row.categories or [],
-            city=row.city,
-            state=row.state,
-            price_level=row.price_level,
-            stars=row.stars,
-            review_count=row.review_count,
-        )
-        for row in rows
-    ]
+    results = [listing_to_result(row) for row in rows]
     return results, total
