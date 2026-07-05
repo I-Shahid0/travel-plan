@@ -1,9 +1,10 @@
 COMPOSE := docker compose -f infra/docker/compose.yml
 
-.PHONY: install dev db-up db-down db-logs ingest ingest-sample serve test lint format
+.PHONY: install dev db-up db-down db-logs ingest ingest-sample embed eval serve test lint format
 
 install:
 	uv sync --all-extras
+	-uv pip uninstall onnxruntime
 
 dev: install
 	cp -n .env.example .env 2>/dev/null || true
@@ -22,6 +23,12 @@ ingest:
 
 ingest-sample:
 	uv run ingest --limit 5000
+
+embed:
+	uv run embed
+
+eval:
+	uv run eval
 
 serve:
 	uv run serve

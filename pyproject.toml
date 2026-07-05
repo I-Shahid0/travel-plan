@@ -14,6 +14,11 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.1",
     "httpx>=0.28.0",
+    "fastembed>=0.5.0",
+    "onnxruntime-gpu>=1.19.0",
+    "nvidia-cudnn-cu12>=9.0.0",
+    "beir>=2.0.0",
+    "numpy>=2.0.0",
 ]
 
 [project.optional-dependencies]
@@ -26,6 +31,8 @@ dev = [
 
 [project.scripts]
 ingest = "retrieval_engine.ingestion.cli:main"
+embed = "retrieval_engine.retrieval.cli:main"
+eval = "retrieval_engine.eval.cli:main"
 serve = "retrieval_engine.main:serve"
 
 [build-system]
@@ -47,3 +54,18 @@ ignore = ["B008"]
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+
+# CUDA 12 build — matches typical Windows CUDA toolkit installs (12.6/12.8).
+# PyPI onnxruntime-gpu defaults to CUDA 13 and will fail with cublasLt64_13.dll missing.
+[[tool.uv.index]]
+name = "onnxruntime-cuda-12"
+url = "https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
+explicit = true
+
+[tool.uv.sources]
+onnxruntime-gpu = { index = "onnxruntime-cuda-12" }
+
+# fastembed pulls cpu onnxruntime which overwrites onnxruntime-gpu binaries.
+# https://github.com/qdrant/fastembed/issues/608
+[tool.uv]
+override-dependencies = ["onnxruntime ; python_version < '0'"]
