@@ -51,6 +51,7 @@ def run_implicit_eval(
     seed: int = 42,
     filters: SearchFilters | None = None,
     technique: str | None = None,
+    personalize: bool = False,
 ) -> dict[str, float | dict]:
     sample_size = sample_size or settings.eval_sample_size
     k = k or settings.eval_k
@@ -85,11 +86,16 @@ def run_implicit_eval(
         total_llm_tokens = 0
         total_llm_usd = 0.0
         skipped = 0
+        personalized_applied = 0
+        cold_start = 0
+        cache_hits = 0
 
         logger.info(
-            "Running implicit-feedback eval on %d test interactions (technique=%s) …",
+            "Running implicit-feedback eval on %d test interactions "
+            "(technique=%s, personalize=%s) …",
             len(test_rows),
             technique,
+            personalize,
         )
 
         for i, interaction in enumerate(test_rows, start=1):
@@ -100,16 +106,22 @@ def run_implicit_eval(
                 continue
 
             start = time.perf_counter()
-            ranked, prepared = hybrid_search_ids_sync(
+            ranked, prepared, pinfo = hybrid_search_ids_sync(
                 session,
                 query,
                 limit=k,
                 filters=filters,
                 technique=technique,
+                user_id=interaction.user_id if personalize else None,
+                personalize=personalize,
             )
             latencies_ms.append((time.perf_counter() - start) * 1000)
             total_llm_tokens += prepared.total_tokens
             total_llm_usd += sum(u.cost_usd() for u in prepared.usage)
+            if pinfo is not None:
+                personalized_applied += int(pinfo.applied)
+                cold_start += int(pinfo.cold_start)
+                cache_hits += int(pinfo.cache_hit)
 
             ranked_lists.append(ranked)
             rel_sets.append({interaction.item_id})
@@ -129,5 +141,12 @@ def run_implicit_eval(
         "usd_per_query": total_llm_usd / n,
         "tokens_per_query": total_llm_tokens / n,
     }
+    if personalize:
+        metrics["personalization"] = {
+            "alpha": settings.personalize_alpha,
+            "applied": float(personalized_applied),
+            "cold_start": float(cold_start),
+            "cache_hits": float(cache_hits),
+        }
     logger.info("Yelp implicit results: %s", metrics)
     return metrics

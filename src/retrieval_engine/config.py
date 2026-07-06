@@ -34,6 +34,20 @@ class Settings(BaseSettings):
     query_understanding_enabled: bool = True
     query_technique: str = "none"
     multi_query_count: int = 3
+    redis_url: str = "redis://localhost:6379/0"
+    redis_timeout_sec: float = 1.0
+    personalize_enabled: bool = True
+    personalize_alpha: float = 0.3
+    personalize_pool_k: int = 50
+    personalize_pref_ttl_sec: int = 3600
+    personalize_max_history: int = 50
+    personalize_half_life_days: float = 365.0
+    query_service_url: str = "http://localhost:8000"
+    itinerary_top_k: int = 8
+    itinerary_budget_ms: float = 6000.0
+    itinerary_budget_usd: float = 0.002
+    itinerary_search_timeout_sec: float = 15.0
+    itinerary_port: int = 8002
 
 
 settings = Settings()

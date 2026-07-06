@@ -27,6 +27,7 @@ dependencies = [
     "transformers>=4.40.0",
     "huggingface-hub>=0.23.0",
     "google-generativeai>=0.8.0",
+    "redis>=5.0.0",
 ]
 
 [project.optional-dependencies]
@@ -44,6 +45,7 @@ index-fts = "retrieval_engine.retrieval.sparse:main"
 eval = "retrieval_engine.eval.cli:main"
 serve = "retrieval_engine.main:serve"
 serve-reranker = "retrieval_engine.reranker_service.main:serve"
+serve-itinerary = "retrieval_engine.itinerary_service.main:serve"
 
 [build-system]
 requires = ["hatchling"]

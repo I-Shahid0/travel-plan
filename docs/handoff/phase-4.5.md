@@ -5,6 +5,8 @@
 **Date:** 2026-07-06  
 **Dev plan:** [docs/plans/retrieval-engine-dev-plan.md](../plans/retrieval-engine-dev-plan.md) (Phase 4.5 section)
 
+> **Completed** (2026-07-06, including Phase 4.6). Next agent: [phase-5.md](phase-5.md)
+
 > **Phase 4 code landed.** Prior handoff: [phase-4.md](phase-4.md) (now completed).
 
 ---

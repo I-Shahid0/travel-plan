@@ -26,8 +26,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 4 query understanding",
-    version="0.5.0",
+    description="Personalized listing search & ranking — Phase 4.5 personalization",
+    version="0.6.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
@@ -71,6 +71,12 @@ async def search(
         None,
         description=f"Query understanding technique ({', '.join(TECHNIQUES)})",
     ),
+    user_id: str | None = Query(
+        None, min_length=1, description="User ID for personalized ranking"
+    ),
+    personalize: bool = Query(
+        True, description="Blend user preference into ranking (requires user_id)"
+    ),
     filters: SearchFilters = Depends(_search_filters),
     session: AsyncSession = Depends(get_session),
 ) -> SearchResponse:
@@ -87,8 +93,14 @@ async def search(
         total = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
         return SearchResponse(query=q, total=total, results=results, mode=mode)
 
-    results, total, prepared = await hybrid_search(
-        session, q, limit=limit, filters=filters, technique=qu_technique
+    results, total, prepared, pinfo = await hybrid_search(
+        session,
+        q,
+        limit=limit,
+        filters=filters,
+        technique=qu_technique,
+        user_id=user_id,
+        personalize=personalize,
     )
     return SearchResponse(
         query=q,
@@ -96,6 +108,7 @@ async def search(
         results=results,
         mode=mode,
         technique=prepared.technique,
+        personalization=pinfo.as_dict() if pinfo else None,
         query_understanding={
             "semantic_query": prepared.semantic_query,
             "filters": {

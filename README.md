@@ -21,6 +21,58 @@ src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
 
+## Phase 4.5 — Personalization + Redis feature store
+
+Second-stage blend re-rank: cross-encoder relevance is combined with a **user preference
+embedding** (weighted mean of the user's train-split interaction listing embeddings,
+weighted by rating × recency), served from a **Redis feature store** with on-demand
+compute + caching. Fails open: Redis down or cold-start user → query-only ranking.
+
+```bash
+docker compose -f infra/docker/compose.yml up -d redis
+curl "http://localhost:8000/search?q=quiet+coffee+shop&user_id=<yelp_user_id>"
+```
+
+Response includes a `personalization` block (`applied`, `cold_start`, `cache_hit`,
+`alpha`, `latency_ms`). Blend weight: `PERSONALIZE_ALPHA` (default 0.3); the blend runs
+over a wider rerank pool (`PERSONALIZE_POOL_K`, default 50) so preference can promote
+items from below the final top-k. Trace span: `personalize` with cache hit/miss attributes.
+
+### Personalization A/B eval
+
+Same held-out test interactions, two passes (query-only vs personalized), appends a
+`"phase": 4.5` record with per-metric deltas:
+
+```bash
+uv run eval --personalize --sample-size 500
+```
+
+**Phase 4.5 results** (500-sample, α=0.3, 2026-07-06): NDCG@10 0.1220 → 0.1221 —
+**no measurable lift** with the embedding-mean signal on this label design (the implicit
+query is built from the user's own review text, leaving personalization little headroom;
+46% of sampled users were cold-start). The blend verifiably reorders rankings; next
+lever per the dev plan is collaborative filtering. Details:
+[docs/handoff/phase-5.md](docs/handoff/phase-5.md).
+
+## Phase 4.6 — LLM itinerary service (isolated)
+
+Trip planning over top-ranked listings, deployed as its **own service** (port 8002) so
+LLM failures can't take down search. Calls the query service for listings (personalized
+when `user_id` given), generates a day-by-day plan, and reports a **latency/cost budget**
+verdict on every response.
+
+```bash
+uv run serve-itinerary            # http://localhost:8002/docs
+curl -X POST http://localhost:8002/itinerary \
+  -H "Content-Type: application/json" \
+  -d '{"query": "weekend food tour in Philadelphia", "days": 2}'
+```
+
+Budgets: `ITINERARY_BUDGET_MS` (6000), `ITINERARY_BUDGET_USD` (0.002). Spans:
+`itinerary`, `fetch_listings`, `itinerary_generate` with token/cost attributes —
+full OTLP tracing from day one. Search being down returns 503 here; search itself
+is unaffected (isolation is one-directional).
+
 ## Phase 3 — Cross-encoder reranking + distributed tracing
 
 Retrieves top-100 via hybrid+RRF, reranks to top-k with a **separate cross-encoder service**, with OpenTelemetry spans exported to Jaeger.
@@ -213,4 +265,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-4.md](docs/handoff/phase-4.md).
+**Next agent:** start with [docs/handoff/phase-5.md](docs/handoff/phase-5.md).

@@ -12,6 +12,7 @@ from retrieval_engine.eval.beir_runner import run_beir_eval
 from retrieval_engine.eval.implicit_runner import run_implicit_eval
 from retrieval_engine.eval.tradeoff import build_tradeoff_chart, load_baseline_records
 from retrieval_engine.query_understanding import TECHNIQUES
+from retrieval_engine.telemetry import setup_telemetry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -40,6 +41,46 @@ def _strip_eval_extras(metrics: dict) -> tuple[dict, dict, dict]:
     latency = metrics.get("latency", {})
     llm_cost = metrics.get("llm_cost", {})
     return core, latency, llm_cost
+
+
+def run_personalization_ab(*, sample_size: int | None, k: int | None) -> None:
+    """Phase 4.5 prove-it: same held-out interactions, query-only vs personalized ranking.
+
+    BEIR is skipped — it has no users, so personalization cannot apply there.
+    """
+    k = k or settings.eval_k
+
+    logger.info("Personalization A/B — pass 1/2: query-only ranking")
+    query_only = run_implicit_eval(sample_size=sample_size, k=k, personalize=False)
+    logger.info("Personalization A/B — pass 2/2: personalized ranking")
+    personalized = run_implicit_eval(sample_size=sample_size, k=k, personalize=True)
+
+    qo_core, qo_latency, _ = _strip_eval_extras(query_only)
+    p_core, p_latency, _ = _strip_eval_extras(personalized)
+
+    metric_keys = (f"ndcg@{k}", f"recall@{k}", "mrr")
+    delta = {
+        key: p_core.get(key, 0.0) - qo_core.get(key, 0.0)
+        for key in metric_keys
+        if key in p_core and key in qo_core
+    }
+
+    record = {
+        "phase": 4.5,
+        "model": settings.embedding_model,
+        "retrieval": "hybrid_rrf_rerank_personalized",
+        "reranker_model": settings.reranker_model,
+        "rrf_k": settings.rrf_k,
+        "personalize_alpha": settings.personalize_alpha,
+        "personalize_pool_k": settings.personalize_pool_k,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "yelp_implicit_query_only": {**qo_core, "latency": qo_latency},
+        "yelp_implicit_personalized": {**p_core, "latency": p_latency},
+        "personalization_delta": delta,
+    }
+    path = append_baseline(record)
+    print(f"Baseline recorded to {path}")
+    print(json.dumps(record, indent=2))
 
 
 def main() -> None:
@@ -79,11 +120,22 @@ def main() -> None:
         action="store_true",
         help="Rebuild results/tradeoff-phase4.json from baseline history",
     )
+    parser.add_argument(
+        "--personalize",
+        action="store_true",
+        help="Phase 4.5 A/B: run implicit track query-only vs personalized, record delta",
+    )
     args = parser.parse_args()
 
     if args.tradeoff:
         chart = build_tradeoff_chart(load_baseline_records())
         print(json.dumps(chart, indent=2))
+        return
+
+    setup_telemetry(service_name="eval")
+
+    if args.personalize:
+        run_personalization_ab(sample_size=args.sample_size, k=args.k)
         return
 
     k = args.k or settings.eval_k

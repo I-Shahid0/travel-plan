@@ -20,6 +20,7 @@ class SearchResponse(BaseModel):
     mode: str = "hybrid"
     technique: str | None = None
     query_understanding: dict | None = None
+    personalization: dict | None = None
 
 
 class HealthResponse(BaseModel):
