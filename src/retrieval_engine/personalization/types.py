@@ -13,6 +13,7 @@ class PersonalizationInfo:
     cold_start: bool = False
     cache_hit: bool = False
     alpha: float = 0.0
+    signal: str = "embedding"
     candidate_count: int = 0
     latency_ms: float = 0.0
 
@@ -24,6 +25,7 @@ class PersonalizationInfo:
             "cold_start": self.cold_start,
             "cache_hit": self.cache_hit,
             "alpha": self.alpha,
+            "signal": self.signal,
             "candidate_count": self.candidate_count,
             "latency_ms": round(self.latency_ms, 3),
         }

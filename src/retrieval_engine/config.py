@@ -42,12 +42,13 @@ class Settings(BaseSettings):
     personalize_pref_ttl_sec: int = 3600
     personalize_max_history: int = 50
     personalize_half_life_days: float = 365.0
+    personalize_signal: str = "embedding"
     query_service_url: str = "http://localhost:8000"
     itinerary_top_k: int = 8
     itinerary_budget_ms: float = 6000.0
     itinerary_budget_usd: float = 0.002
     itinerary_search_timeout_sec: float = 15.0
-    itinerary_port: int = 8002
+    itinerary_port: int = 8102
 
 
 settings = Settings()

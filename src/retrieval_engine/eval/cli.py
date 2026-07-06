@@ -9,7 +9,11 @@ from pathlib import Path
 
 from retrieval_engine.config import settings
 from retrieval_engine.eval.beir_runner import run_beir_eval
-from retrieval_engine.eval.implicit_runner import run_implicit_eval
+from retrieval_engine.eval.implicit_runner import (
+    QUERY_STRATEGIES,
+    run_implicit_ab,
+    run_implicit_eval,
+)
 from retrieval_engine.eval.tradeoff import build_tradeoff_chart, load_baseline_records
 from retrieval_engine.query_understanding import TECHNIQUES
 from retrieval_engine.telemetry import setup_telemetry
@@ -83,6 +87,122 @@ def run_personalization_ab(*, sample_size: int | None, k: int | None) -> None:
     print(json.dumps(record, indent=2))
 
 
+def _core_metrics_block(metrics: dict, *, k: int) -> dict:
+    keys = (f"ndcg@{k}", f"recall@{k}", "mrr", "queries")
+    return {key: metrics.get(key) for key in keys if key in metrics}
+
+
+def _comparison_row(
+    strategy: str,
+    ab: dict,
+    *,
+    k: int,
+    segment: str = "combined",
+) -> dict:
+    query_only = ab["query_only"][segment] if segment in ab["query_only"] else ab["query_only"]
+    personalized = (
+        ab["personalized"][segment] if segment in ab["personalized"] else ab["personalized"]
+    )
+    delta = (
+        ab["delta"][segment]
+        if isinstance(ab["delta"], dict) and segment in ab["delta"]
+        else ab["delta"]
+    )
+    return {
+        "query_strategy": strategy,
+        "segment": segment,
+        "signal": ab.get("personalize_signal", settings.personalize_signal),
+        "query_only": _core_metrics_block(query_only, k=k),
+        "personalized": _core_metrics_block(personalized, k=k),
+        "delta": delta,
+    }
+
+
+def run_phase_47_eval(*, sample_size: int | None, k: int | None) -> None:
+    """Phase 4.7: warm/cold segmentation, query strategies, stronger signals."""
+    k = k or settings.eval_k
+    strategies = list(QUERY_STRATEGIES)
+
+    logger.info("Phase 4.7 — evaluating %d query strategies", len(strategies))
+    strategy_results: dict[str, dict] = {}
+    for index, strategy in enumerate(strategies, start=1):
+        logger.info(
+            "Phase 4.7 — strategy %d/%d: %s (embedding signal)",
+            index,
+            len(strategies),
+            strategy,
+        )
+        strategy_results[strategy] = run_implicit_ab(
+            sample_size=sample_size,
+            k=k,
+            query_strategy=strategy,
+            personalize_signal="embedding",
+            segment_warm_cold=True,
+        )
+
+    logger.info("Phase 4.7 — category_affinity signal on intent_template queries")
+    category_affinity_ab = run_implicit_ab(
+        sample_size=sample_size,
+        k=k,
+        query_strategy="intent_template",
+        personalize_signal="category_affinity",
+        segment_warm_cold=True,
+    )
+
+    comparison_table = []
+    for strategy in strategies:
+        for segment in ("combined", "warm_users", "cold_users"):
+            comparison_table.append(
+                _comparison_row(strategy, strategy_results[strategy], k=k, segment=segment)
+            )
+    for segment in ("combined", "warm_users", "cold_users"):
+        comparison_table.append(
+            _comparison_row(
+                "intent_template",
+                category_affinity_ab,
+                k=k,
+                segment=segment,
+            )
+        )
+        comparison_table[-1]["signal"] = "category_affinity"
+
+    review_text_warm_delta = strategy_results["review_text"]["delta"]["warm_users"]
+    intent_warm_delta = strategy_results["intent_template"]["delta"]["warm_users"]
+    category_affinity_warm_delta = category_affinity_ab["delta"]["warm_users"]
+
+    conclusion = (
+        "Personalization shows measurable warm-user lift under generated-query evaluation."
+        if intent_warm_delta.get(f"ndcg@{k}", 0.0) > 0.001
+        else (
+            "Category affinity outperforms embedding personalization on warm users."
+            if category_affinity_warm_delta.get(f"ndcg@{k}", 0.0)
+            > review_text_warm_delta.get(f"ndcg@{k}", 0.0) + 0.001
+            else (
+                "No measurable personalization lift under available labels; "
+                "infrastructure validated, signal insufficient for offline ranking gains."
+            )
+        )
+    )
+
+    record = {
+        "phase": 4.7,
+        "model": settings.embedding_model,
+        "retrieval": "hybrid_rrf_rerank_personalized",
+        "reranker_model": settings.reranker_model,
+        "rrf_k": settings.rrf_k,
+        "personalize_alpha": settings.personalize_alpha,
+        "personalize_pool_k": settings.personalize_pool_k,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "query_strategies": strategy_results,
+        "category_affinity_baseline": category_affinity_ab,
+        "comparison_table": comparison_table,
+        "conclusion": conclusion,
+    }
+    path = append_baseline(record)
+    print(f"Baseline recorded to {path}")
+    print(json.dumps(record, indent=2))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(
         description="Run BEIR + implicit eval tracks and record baseline"
@@ -125,6 +245,23 @@ def main() -> None:
         action="store_true",
         help="Phase 4.5 A/B: run implicit track query-only vs personalized, record delta",
     )
+    parser.add_argument(
+        "--phase-4.7",
+        action="store_true",
+        help="Phase 4.7 eval: warm/cold segmentation, query strategies, signal comparison",
+    )
+    parser.add_argument(
+        "--query-strategy",
+        choices=list(QUERY_STRATEGIES),
+        default=None,
+        help="Implicit eval query generation strategy (default: review_text)",
+    )
+    parser.add_argument(
+        "--personalize-signal",
+        choices=("embedding", "category_affinity"),
+        default=None,
+        help="Personalization signal type (default: PERSONALIZE_SIGNAL)",
+    )
     args = parser.parse_args()
 
     if args.tradeoff:
@@ -133,6 +270,10 @@ def main() -> None:
         return
 
     setup_telemetry(service_name="eval")
+
+    if args.phase_4_7:
+        run_phase_47_eval(sample_size=args.sample_size, k=args.k)
+        return
 
     if args.personalize:
         run_personalization_ab(sample_size=args.sample_size, k=args.k)
@@ -169,7 +310,14 @@ def main() -> None:
                     cost_agg[key].append(llm_cost[key])
 
         if not args.skip_implicit:
-            implicit = run_implicit_eval(sample_size=args.sample_size, k=k, technique=technique)
+            implicit = run_implicit_eval(
+                sample_size=args.sample_size,
+                k=k,
+                technique=technique,
+                query_strategy=args.query_strategy or "review_text",
+                personalize_signal=args.personalize_signal,
+                segment_warm_cold=bool(args.query_strategy),
+            )
             core, latency, llm_cost = _strip_eval_extras(implicit)
             record["yelp_implicit"] = core
             for key in latency_agg:

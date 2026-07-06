@@ -210,6 +210,7 @@ def _hybrid_search_ids_sync(
     rrf_k: int,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> tuple[list[str], PersonalizationInfo | None]:
     if prepared.query_variants:
         merged = _multi_query_candidates_sync(
@@ -228,7 +229,9 @@ def _hybrid_search_ids_sync(
         scored = _rank_scored(merged, pool)
 
     if do_personalize and scored:
-        return personalize_rerank_sync(session, user_id, scored, limit=limit)
+        return personalize_rerank_sync(
+            session, user_id, scored, limit=limit, signal=personalize_signal
+        )
 
     return [item_id for item_id, _ in scored[:limit]], None
 
@@ -242,6 +245,7 @@ async def _hybrid_search_ids_async(
     rrf_k: int,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> tuple[list[str], PersonalizationInfo | None]:
     if prepared.query_variants:
         merged = await _multi_query_candidates_async(
@@ -262,7 +266,9 @@ async def _hybrid_search_ids_async(
         scored = _rank_scored(merged, pool)
 
     if do_personalize and scored:
-        return await personalize_rerank(session, user_id, scored, limit=limit)
+        return await personalize_rerank(
+            session, user_id, scored, limit=limit, signal=personalize_signal
+        )
 
     return [item_id for item_id, _ in scored[:limit]], None
 
@@ -278,6 +284,7 @@ def hybrid_search_ids_sync(
     technique: str | None = None,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> tuple[list[str], PreparedQuery, PersonalizationInfo | None]:
     candidate_k = candidate_k or settings.hybrid_candidate_k
     rrf_k = rrf_k or settings.rrf_k
@@ -290,6 +297,7 @@ def hybrid_search_ids_sync(
         rrf_k=rrf_k,
         user_id=user_id,
         personalize=personalize,
+        personalize_signal=personalize_signal,
     )
     return ids, prepared, pinfo
 
@@ -305,6 +313,7 @@ async def hybrid_search_ids(
     technique: str | None = None,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> list[str]:
     candidate_k = candidate_k or settings.hybrid_candidate_k
     rrf_k = rrf_k or settings.rrf_k
@@ -317,6 +326,7 @@ async def hybrid_search_ids(
         rrf_k=rrf_k,
         user_id=user_id,
         personalize=personalize,
+        personalize_signal=personalize_signal,
     )
     return ids
 
@@ -332,6 +342,7 @@ def hybrid_search_sync(
     technique: str | None = None,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> tuple[list[ListingResult], int, PreparedQuery, PersonalizationInfo | None]:
     prepared = apply_query_understanding(query, technique=technique, explicit_filters=filters)
     ids, pinfo = _hybrid_search_ids_sync(
@@ -342,6 +353,7 @@ def hybrid_search_sync(
         rrf_k=rrf_k or settings.rrf_k,
         user_id=user_id,
         personalize=personalize,
+        personalize_signal=personalize_signal,
     )
     results = _fetch_listings_by_ids(session, ids)
     total = session.execute(select(func.count()).select_from(Listing)).scalar_one()
@@ -359,6 +371,7 @@ async def hybrid_search(
     technique: str | None = None,
     user_id: str | None = None,
     personalize: bool = False,
+    personalize_signal: str | None = None,
 ) -> tuple[list[ListingResult], int, PreparedQuery, PersonalizationInfo | None]:
     prepared = apply_query_understanding(query, technique=technique, explicit_filters=filters)
     ids, pinfo = await _hybrid_search_ids_async(
@@ -369,6 +382,7 @@ async def hybrid_search(
         rrf_k=rrf_k or settings.rrf_k,
         user_id=user_id,
         personalize=personalize,
+        personalize_signal=personalize_signal,
     )
     results = await _fetch_listings_by_ids_async(session, ids)
     total = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
