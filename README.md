@@ -21,6 +21,48 @@ src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
 
+## Phase 3 — Cross-encoder reranking + distributed tracing
+
+Retrieves top-100 via hybrid+RRF, reranks to top-k with a **separate cross-encoder service**, with OpenTelemetry spans exported to Jaeger.
+
+### Reranker service
+
+```bash
+uv sync --all-extras
+uv run serve-reranker          # http://localhost:8001
+```
+
+Or via Docker: `docker compose -f infra/docker/compose.yml up -d reranker`
+
+Query service calls `RERANKER_URL` (default `http://localhost:8001`). On failure, falls back to RRF order (`rerank_fallback=true` span).
+
+### Tracing (Jaeger)
+
+```bash
+make otel-up                   # Jaeger UI: http://localhost:16686
+uv run serve                   # query-service spans → OTel Collector → Jaeger
+```
+
+Manual spans: `embed_query`, `dense_search`, `sparse_search`, `fusion`, `rerank`.
+
+### Search
+
+Hybrid mode (default) now includes reranking when `RERANK_ENABLED=true`:
+
+```bash
+curl "http://localhost:8000/search?q=quiet+coffee+shop"
+curl "http://localhost:8000/search?q=pizza&mode=dense"   # debug — no rerank
+```
+
+### Eval harness
+
+Re-run after Phase 3 — appends `"phase": 3` to `results/baseline.json`. **Requires reranker running.**
+
+```bash
+uv run serve-reranker &        # or docker compose up -d reranker
+uv run eval
+```
+
 ## Phase 2 — Hybrid retrieval + RRF fusion
 
 Combines dense semantic search with Postgres FTS (`ts_rank_cd`) via Reciprocal Rank Fusion.
@@ -169,4 +211,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-3.md](docs/handoff/phase-3.md).
+**Next agent:** start with [docs/handoff/phase-4.md](docs/handoff/phase-4.md).

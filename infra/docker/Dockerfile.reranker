@@ -1,0 +1,19 @@
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN pip install --no-cache-dir uv
+
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+RUN uv sync --extra reranker --no-dev
+
+ENV RERANKER_MODEL=cross-encoder/ms-marco-MiniLM-L-6-v2
+ENV OTEL_ENABLED=true
+ENV OTEL_SERVICE_NAME=reranker-service
+ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+
+EXPOSE 8001
+
+CMD ["uv", "run", "uvicorn", "retrieval_engine.reranker_service.main:app", "--host", "0.0.0.0", "--port", "8001"]

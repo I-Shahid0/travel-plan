@@ -1,6 +1,6 @@
 COMPOSE := docker compose -f infra/docker/compose.yml
 
-.PHONY: install dev db-up db-down db-logs ingest ingest-sample embed eval serve test lint format
+.PHONY: install dev db-up db-down db-logs otel-up ingest ingest-sample embed index-fts eval serve serve-reranker test lint format
 
 install:
 	uv sync --all-extras
@@ -11,6 +11,9 @@ dev: install
 
 db-up:
 	$(COMPOSE) up -d postgres
+
+otel-up:
+	$(COMPOSE) up -d jaeger otel-collector
 
 db-down:
 	$(COMPOSE) down
@@ -35,6 +38,9 @@ eval:
 
 serve:
 	uv run serve
+
+serve-reranker:
+	uv run serve-reranker
 
 test:
 	uv run pytest -q

@@ -18,6 +18,14 @@ class Settings(BaseSettings):
     results_dir: str = "results"
     rrf_k: int = 60
     hybrid_candidate_k: int = 100
+    reranker_url: str = "http://localhost:8001"
+    reranker_model: str = "cross-encoder/ms-marco-MiniLM-L-6-v2"
+    rerank_batch_size: int = 32
+    rerank_timeout_sec: float = 30.0
+    rerank_enabled: bool = True
+    otel_enabled: bool = True
+    otel_service_name: str = "query-service"
+    otel_exporter_otlp_endpoint: str = "http://localhost:4317"
 
 
 settings = Settings()

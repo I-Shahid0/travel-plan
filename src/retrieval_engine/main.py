@@ -13,19 +13,22 @@ from retrieval_engine.retrieval.dense import _fetch_listings_by_ids_async, dense
 from retrieval_engine.retrieval.filters import SearchFilters
 from retrieval_engine.retrieval.hybrid import hybrid_search
 from retrieval_engine.retrieval.sparse import sparse_search_ids
+from retrieval_engine.telemetry import instrument_fastapi, setup_telemetry
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    setup_telemetry(service_name="query-service")
     yield
 
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 2 hybrid retrieval",
-    version="0.3.0",
+    description="Personalized listing search & ranking — Phase 3 hybrid + rerank",
+    version="0.4.0",
     lifespan=lifespan,
 )
+instrument_fastapi(app)
 
 
 def _search_filters(

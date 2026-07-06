@@ -17,5 +17,48 @@ services:
       timeout: 5s
       retries: 10
 
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: retrieval-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: retrieval-otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    volumes:
+      - ../otel/collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+
+  reranker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.reranker
+    container_name: retrieval-reranker
+    ports:
+      - "8001:8001"
+    environment:
+      RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L-6-v2
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: reranker-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+    depends_on:
+      - otel-collector
+
 volumes:
   postgres_data:
