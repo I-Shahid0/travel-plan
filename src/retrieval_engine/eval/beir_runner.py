@@ -10,6 +10,8 @@ from beir.util import download_and_unzip
 from retrieval_engine.config import settings
 from retrieval_engine.eval.metrics import aggregate_metrics
 from retrieval_engine.retrieval.embeddings import embed_texts
+from retrieval_engine.retrieval.fusion import rrf_merge
+from retrieval_engine.retrieval.sparse import bm25_search
 
 logger = logging.getLogger(__name__)
 
@@ -40,6 +42,7 @@ def run_beir_eval(
 ) -> dict[str, float]:
     dataset = dataset or settings.beir_dataset
     k = k or settings.eval_k
+    candidate_k = max(k, settings.hybrid_candidate_k)
     data_root = data_root or Path("data/beir")
 
     if dataset not in BEIR_URLS:
@@ -61,11 +64,13 @@ def run_beir_eval(
     rel_lists: list[dict[str, float]] = []
 
     query_items = [(qid, text) for qid, text in queries.items() if qid in qrels]
-    logger.info("Running dense retrieval on %d BEIR queries …", len(query_items))
+    logger.info("Running hybrid retrieval on %d BEIR queries …", len(query_items))
 
     for i, (query_id, query_text) in enumerate(query_items, start=1):
         query_vec = np.array(embed_texts([query_text])[0], dtype=np.float32)
-        ranked = _rank_by_cosine(query_vec, doc_vectors, doc_ids, top_k=max(k, 100))
+        dense_ids = _rank_by_cosine(query_vec, doc_vectors, doc_ids, top_k=candidate_k)
+        sparse_ids = bm25_search(query_text, doc_ids, doc_texts, top_k=candidate_k)
+        ranked = rrf_merge(dense_ids, sparse_ids, k=settings.rrf_k)[:k]
         ranked_lists.append(ranked)
         rel_lists.append({doc_id: float(score) for doc_id, score in qrels[query_id].items()})
 

@@ -9,7 +9,8 @@ from retrieval_engine.config import settings
 from retrieval_engine.db.models import EvalSplit, Interaction, Listing
 from retrieval_engine.db.session import sync_session_factory
 from retrieval_engine.eval.metrics import aggregate_metrics
-from retrieval_engine.retrieval.dense import dense_search_sync
+from retrieval_engine.retrieval.filters import SearchFilters
+from retrieval_engine.retrieval.hybrid import hybrid_search_ids_sync
 
 logger = logging.getLogger(__name__)
 
@@ -35,9 +36,11 @@ def run_implicit_eval(
     sample_size: int | None = None,
     k: int | None = None,
     seed: int = 42,
+    filters: SearchFilters | None = None,
 ) -> dict[str, float]:
     sample_size = sample_size or settings.eval_sample_size
     k = k or settings.eval_k
+    filters = filters or SearchFilters()
 
     with sync_session_factory() as session:
         test_rows = (
@@ -75,8 +78,8 @@ def run_implicit_eval(
                 skipped += 1
                 continue
 
-            results, _ = dense_search_sync(session, query, limit=k)
-            ranked_lists.append([item.id for item in results])
+            ranked = hybrid_search_ids_sync(session, query, limit=k, filters=filters)
+            ranked_lists.append(ranked)
             rel_sets.append({interaction.item_id})
 
             if i % 500 == 0:

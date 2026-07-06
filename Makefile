@@ -27,6 +27,9 @@ ingest-sample:
 embed:
 	uv run embed
 
+index-fts:
+	uv run index-fts
+
 eval:
 	uv run eval
 

@@ -9,7 +9,10 @@ from retrieval_engine.api.schemas import EvalSplitResponse, HealthResponse, Sear
 from retrieval_engine.api.search import keyword_search
 from retrieval_engine.db.models import EvalSplitMetadata, Listing
 from retrieval_engine.db.session import get_session
-from retrieval_engine.retrieval.dense import dense_search
+from retrieval_engine.retrieval.dense import _fetch_listings_by_ids_async, dense_search
+from retrieval_engine.retrieval.filters import SearchFilters
+from retrieval_engine.retrieval.hybrid import hybrid_search
+from retrieval_engine.retrieval.sparse import sparse_search_ids
 
 
 @asynccontextmanager
@@ -19,10 +22,28 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 1 dense retrieval",
-    version="0.2.0",
+    description="Personalized listing search & ranking — Phase 2 hybrid retrieval",
+    version="0.3.0",
     lifespan=lifespan,
 )
+
+
+def _search_filters(
+    price_max: int | None = Query(None, ge=1, le=4, description="Max price level (1-4)"),
+    category: str | None = Query(None, min_length=1, description="Category filter"),
+    city: str | None = Query(None, min_length=1, description="City filter"),
+    lat: float | None = Query(None, ge=-90, le=90, description="Center latitude"),
+    lon: float | None = Query(None, ge=-180, le=180, description="Center longitude"),
+    radius_km: float | None = Query(None, gt=0, le=500, description="Geo radius in km"),
+) -> SearchFilters:
+    return SearchFilters(
+        price_max=price_max,
+        category=category,
+        city=city,
+        lat=lat,
+        lon=lon,
+        radius_km=radius_km,
+    )
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -36,13 +57,24 @@ async def search(
     q: str = Query(..., min_length=1, description="Search query"),
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0, description="Offset (keyword mode only)"),
-    mode: str = Query("dense", pattern="^(dense|keyword)$", description="Retrieval mode"),
+    mode: str = Query(
+        "hybrid",
+        pattern="^(hybrid|dense|sparse|keyword)$",
+        description="Retrieval mode",
+    ),
+    filters: SearchFilters = Depends(_search_filters),
     session: AsyncSession = Depends(get_session),
 ) -> SearchResponse:
     if mode == "keyword":
         results, total = await keyword_search(session, q, limit=limit, offset=offset)
+    elif mode == "dense":
+        results, total = await dense_search(session, q, limit=limit, filters=filters)
+    elif mode == "sparse":
+        ids = await sparse_search_ids(session, q, limit=limit, filters=filters)
+        results = await _fetch_listings_by_ids_async(session, ids)
+        total = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
     else:
-        results, total = await dense_search(session, q, limit=limit)
+        results, total = await hybrid_search(session, q, limit=limit, filters=filters)
     return SearchResponse(query=q, total=total, results=results, mode=mode)
 
 

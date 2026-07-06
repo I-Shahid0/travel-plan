@@ -63,8 +63,10 @@ def main() -> None:
 
     k = args.k or settings.eval_k
     record: dict = {
-        "phase": 1,
+        "phase": 2,
         "model": settings.embedding_model,
+        "retrieval": "hybrid_rrf",
+        "rrf_k": settings.rrf_k,
         "timestamp": datetime.now(UTC).isoformat(),
     }
 

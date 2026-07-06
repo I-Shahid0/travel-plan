@@ -21,6 +21,56 @@ src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
 
+## Phase 2 — Hybrid retrieval + RRF fusion
+
+Combines dense semantic search with Postgres FTS (`ts_rank_cd`) via Reciprocal Rank Fusion.
+
+### Build sparse (FTS) index
+
+After ingestion (and ideally after embed), backfill the `search_vector` column and GIN index:
+
+```bash
+uv run index-fts
+```
+
+### Search
+
+Default mode is hybrid (dense + sparse + RRF). Debug modes remain available:
+
+```bash
+curl "http://localhost:8000/search?q=quiet+coffee+shop"
+curl "http://localhost:8000/search?q=pizza&mode=dense"
+curl "http://localhost:8000/search?q=pizza&mode=sparse"
+curl "http://localhost:8000/search?q=pizza&mode=keyword"
+curl "http://localhost:8000/search?q=coffee&city=Portland&price_max=2"
+```
+
+Structured filters (pre-filter, then hybrid on text): `price_max`, `category`, `city`, `lat`/`lon`/`radius_km`.
+
+### Eval harness
+
+Re-run after Phase 2 changes — appends a `"phase": 2` record to `results/baseline.json`:
+
+```bash
+uv run eval
+```
+
+**Phase 2 results** (hybrid + RRF, MiniLM-L6-v2, 2026-07-05):
+
+| Track | NDCG@10 | Recall@10 | MRR | Δ NDCG@10 vs Phase 1 |
+|-------|---------|-----------|-----|----------------------|
+| BEIR SciFact | 0.677 | 0.822 | 0.636 | +0.054 |
+| Yelp implicit (10k sample) | 0.191 | 0.272 | 0.164 | +0.113 |
+
+**Phase 1 baseline** (dense-only, MiniLM-L6-v2, 2026-07-05):
+
+| Track | NDCG@10 | Recall@10 | MRR |
+|-------|---------|-----------|-----|
+| BEIR SciFact | 0.624 | 0.774 | 0.585 |
+| Yelp implicit (10k sample) | 0.079 | 0.115 | 0.068 |
+
+See `results/baseline.json` for full history.
+
 ## Phase 1 — Baseline retrieval + eval loop
 
 Dense-only retrieval with a reproducible measurement harness.
@@ -35,12 +85,10 @@ uv run embed
 
 Uses `sentence-transformers/all-MiniLM-L6-v2` (384-dim) via FastEmbed + ONNX Runtime. Creates an HNSW index on `listings.embedding` when complete. GPU: set `EMBEDDING_DEVICE=cuda` (requires CUDA 12 toolkit + cuDNN).
 
-### Search
-
-Default mode is dense semantic search; keyword stub remains for debugging:
+### Search (Phase 1 modes)
 
 ```bash
-curl "http://localhost:8000/search?q=quiet+coffee+shop"
+curl "http://localhost:8000/search?q=quiet+coffee+shop&mode=dense"
 curl "http://localhost:8000/search?q=pizza&mode=keyword"
 ```
 
@@ -63,15 +111,6 @@ Implicit query construction (v1):
 2. Otherwise fall back to the interacted listing's title + categories
 
 Test interactions are sampled (`EVAL_SAMPLE_SIZE`, default 10k) for fast iteration.
-
-**Phase 1 baseline** (dense-only, MiniLM-L6-v2, 2026-07-05):
-
-| Track | NDCG@10 | Recall@10 | MRR |
-|-------|---------|-----------|-----|
-| BEIR SciFact | 0.624 | 0.774 | 0.585 |
-| Yelp implicit (10k sample) | 0.079 | 0.115 | 0.068 |
-
-See `results/baseline.json` for full history. Phase 2 target: beat these with hybrid + RRF.
 
 ### Phase 0 — Quick start
 
@@ -130,4 +169,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-2.md](docs/handoff/phase-2.md).
+**Next agent:** start with [docs/handoff/phase-3.md](docs/handoff/phase-3.md).

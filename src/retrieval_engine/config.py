@@ -16,6 +16,8 @@ class Settings(BaseSettings):
     eval_k: int = 10
     beir_dataset: str = "scifact"
     results_dir: str = "results"
+    rrf_k: int = 60
+    hybrid_candidate_k: int = 100
 
 
 settings = Settings()

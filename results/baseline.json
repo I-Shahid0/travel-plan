@@ -28,5 +28,26 @@
       "sample_size": 10000.0,
       "skipped": 0.0
     }
+  },
+  {
+    "phase": 2,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "retrieval": "hybrid_rrf",
+    "rrf_k": 60,
+    "timestamp": "2026-07-05T21:57:48.246759+00:00",
+    "beir_scifact": {
+      "ndcg@10": 0.6774525557944499,
+      "recall@10": 0.8222222222222222,
+      "mrr": 0.6355952380952381,
+      "queries": 300.0
+    },
+    "yelp_implicit": {
+      "ndcg@10": 0.19145163108084876,
+      "recall@10": 0.2724,
+      "mrr": 0.16405650793650794,
+      "queries": 10000.0,
+      "sample_size": 10000.0,
+      "skipped": 0.0
+    }
   }
 ]

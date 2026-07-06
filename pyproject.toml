@@ -32,6 +32,7 @@ dev = [
 [project.scripts]
 ingest = "retrieval_engine.ingestion.cli:main"
 embed = "retrieval_engine.retrieval.cli:main"
+index-fts = "retrieval_engine.retrieval.sparse:main"
 eval = "retrieval_engine.eval.cli:main"
 serve = "retrieval_engine.main:serve"
 
