@@ -1,0 +1,9 @@
+{
+  "phase": 4,
+  "baseline_reference": {
+    "phase": 3,
+    "beir_ndcg@10": 0.6852441263250468,
+    "yelp_ndcg@10": 0.16255934828072555
+  },
+  "points": []
+}

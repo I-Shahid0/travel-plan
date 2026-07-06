@@ -2,7 +2,9 @@ from __future__ import annotations
 
 import logging
 import random
+import time
 
+import numpy as np
 from sqlalchemy import select
 
 from retrieval_engine.config import settings
@@ -31,16 +33,28 @@ def build_implicit_query(interaction: Interaction, listing: Listing | None) -> s
     return query or None
 
 
+def _latency_stats(latencies_ms: list[float]) -> dict[str, float]:
+    if not latencies_ms:
+        return {"mean_ms": 0.0, "p50_ms": 0.0, "p95_ms": 0.0}
+    arr = np.array(latencies_ms, dtype=np.float64)
+    return {
+        "mean_ms": float(arr.mean()),
+        "p50_ms": float(np.percentile(arr, 50)),
+        "p95_ms": float(np.percentile(arr, 95)),
+    }
+
+
 def run_implicit_eval(
     *,
     sample_size: int | None = None,
     k: int | None = None,
     seed: int = 42,
     filters: SearchFilters | None = None,
-) -> dict[str, float]:
+    technique: str | None = None,
+) -> dict[str, float | dict]:
     sample_size = sample_size or settings.eval_sample_size
     k = k or settings.eval_k
-    filters = filters or SearchFilters()
+    technique = technique or settings.query_technique
 
     with sync_session_factory() as session:
         test_rows = (
@@ -67,9 +81,16 @@ def run_implicit_eval(
 
         ranked_lists: list[list[str]] = []
         rel_sets: list[set[str]] = []
+        latencies_ms: list[float] = []
+        total_llm_tokens = 0
+        total_llm_usd = 0.0
         skipped = 0
 
-        logger.info("Running implicit-feedback eval on %d test interactions …", len(test_rows))
+        logger.info(
+            "Running implicit-feedback eval on %d test interactions (technique=%s) …",
+            len(test_rows),
+            technique,
+        )
 
         for i, interaction in enumerate(test_rows, start=1):
             listing = listings.get(interaction.item_id)
@@ -78,7 +99,18 @@ def run_implicit_eval(
                 skipped += 1
                 continue
 
-            ranked = hybrid_search_ids_sync(session, query, limit=k, filters=filters)
+            start = time.perf_counter()
+            ranked, prepared = hybrid_search_ids_sync(
+                session,
+                query,
+                limit=k,
+                filters=filters,
+                technique=technique,
+            )
+            latencies_ms.append((time.perf_counter() - start) * 1000)
+            total_llm_tokens += prepared.total_tokens
+            total_llm_usd += sum(u.cost_usd() for u in prepared.usage)
+
             ranked_lists.append(ranked)
             rel_sets.append({interaction.item_id})
 
@@ -89,7 +121,13 @@ def run_implicit_eval(
         logger.info("Skipped %d interactions with no usable query text", skipped)
 
     metrics = aggregate_metrics(ranked_lists, rel_sets, k=k)
+    n = len(ranked_lists) or 1
     metrics["sample_size"] = float(len(test_rows))
     metrics["skipped"] = float(skipped)
+    metrics["latency"] = _latency_stats(latencies_ms)
+    metrics["llm_cost"] = {
+        "usd_per_query": total_llm_usd / n,
+        "tokens_per_query": total_llm_tokens / n,
+    }
     logger.info("Yelp implicit results: %s", metrics)
     return metrics

@@ -18,6 +18,8 @@ class SearchResponse(BaseModel):
     total: int
     results: list[ListingResult]
     mode: str = "hybrid"
+    technique: str | None = None
+    query_understanding: dict | None = None
 
 
 class HealthResponse(BaseModel):

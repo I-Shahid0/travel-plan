@@ -28,6 +28,12 @@ class Settings(BaseSettings):
     otel_enabled: bool = True
     otel_service_name: str = "query-service"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
+    llm_provider: str = "mock"
+    google_api_key: str = ""
+    llm_model: str = "gemini-2.0-flash"
+    query_understanding_enabled: bool = True
+    query_technique: str = "none"
+    multi_query_count: int = 3
 
 
 settings = Settings()

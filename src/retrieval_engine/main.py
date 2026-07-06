@@ -7,8 +7,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from retrieval_engine.api.schemas import EvalSplitResponse, HealthResponse, SearchResponse
 from retrieval_engine.api.search import keyword_search
+from retrieval_engine.config import settings
 from retrieval_engine.db.models import EvalSplitMetadata, Listing
 from retrieval_engine.db.session import get_session
+from retrieval_engine.query_understanding import TECHNIQUES
 from retrieval_engine.retrieval.dense import _fetch_listings_by_ids_async, dense_search
 from retrieval_engine.retrieval.filters import SearchFilters
 from retrieval_engine.retrieval.hybrid import hybrid_search
@@ -24,8 +26,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 3 hybrid + rerank",
-    version="0.4.0",
+    description="Personalized listing search & ranking — Phase 4 query understanding",
+    version="0.5.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
@@ -65,20 +67,49 @@ async def search(
         pattern="^(hybrid|dense|sparse|keyword)$",
         description="Retrieval mode",
     ),
+    technique: str | None = Query(
+        None,
+        description=f"Query understanding technique ({', '.join(TECHNIQUES)})",
+    ),
     filters: SearchFilters = Depends(_search_filters),
     session: AsyncSession = Depends(get_session),
 ) -> SearchResponse:
+    qu_technique = technique or settings.query_technique
     if mode == "keyword":
         results, total = await keyword_search(session, q, limit=limit, offset=offset)
-    elif mode == "dense":
+        return SearchResponse(query=q, total=total, results=results, mode=mode)
+    if mode == "dense":
         results, total = await dense_search(session, q, limit=limit, filters=filters)
-    elif mode == "sparse":
+        return SearchResponse(query=q, total=total, results=results, mode=mode)
+    if mode == "sparse":
         ids = await sparse_search_ids(session, q, limit=limit, filters=filters)
         results = await _fetch_listings_by_ids_async(session, ids)
         total = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
-    else:
-        results, total = await hybrid_search(session, q, limit=limit, filters=filters)
-    return SearchResponse(query=q, total=total, results=results, mode=mode)
+        return SearchResponse(query=q, total=total, results=results, mode=mode)
+
+    results, total, prepared = await hybrid_search(
+        session, q, limit=limit, filters=filters, technique=qu_technique
+    )
+    return SearchResponse(
+        query=q,
+        total=total,
+        results=results,
+        mode=mode,
+        technique=prepared.technique,
+        query_understanding={
+            "semantic_query": prepared.semantic_query,
+            "filters": {
+                "price_max": prepared.filters.price_max,
+                "category": prepared.filters.category,
+                "city": prepared.filters.city,
+                "lat": prepared.filters.lat,
+                "lon": prepared.filters.lon,
+                "radius_km": prepared.filters.radius_km,
+            },
+            "metadata": prepared.metadata,
+            "usage": prepared.usage_summary(),
+        },
+    )
 
 
 @app.get("/eval/split", response_model=EvalSplitResponse)
