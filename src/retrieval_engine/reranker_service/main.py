@@ -3,19 +3,17 @@ from __future__ import annotations
 import logging
 import os
 from contextlib import asynccontextmanager
-from functools import lru_cache
 
 import uvicorn
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from retrieval_engine.config import settings
+from retrieval_engine.reranker_service.onnx_reranker import active_provider, score_pairs
 from retrieval_engine.telemetry import get_tracer, instrument_fastapi, setup_telemetry
 
 logger = logging.getLogger(__name__)
 _tracer = get_tracer(__name__)
-
-_model = None
 
 
 class RerankCandidate(BaseModel):
@@ -42,19 +40,12 @@ class RerankResponse(BaseModel):
 class HealthResponse(BaseModel):
     status: str
     model: str
+    backend: str
+    device: str
 
 
 def _reranker_model_name() -> str:
-    return os.environ.get("RERANKER_MODEL", settings.reranker_model)
-
-
-@lru_cache(maxsize=1)
-def get_cross_encoder():
-    from sentence_transformers import CrossEncoder
-
-    model_name = _reranker_model_name()
-    logger.info("Loading cross-encoder: %s", model_name)
-    return CrossEncoder(model_name)
+    return os.environ.get("RERANKER_ONNX_MODEL", settings.reranker_onnx_model)
 
 
 def score_candidates(
@@ -63,27 +54,27 @@ def score_candidates(
     *,
     batch_size: int,
 ) -> list[ScoredResult]:
-    model = get_cross_encoder()
-    pairs = [[query, candidate.text] for candidate in candidates]
-    scores = model.predict(pairs, batch_size=batch_size, show_progress_bar=False)
+    texts = [candidate.text for candidate in candidates]
+    scores = score_pairs(query, texts, batch_size=batch_size)
     ranked = sorted(
         zip(candidates, scores, strict=True),
         key=lambda item: float(item[1]),
         reverse=True,
     )
-    return [ScoredResult(id=candidate.id, score=float(score)) for candidate, score in ranked]
+    return [ScoredResult(id=candidate.id, score=score) for candidate, score in ranked]
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_telemetry(service_name="reranker-service")
+    active_provider()
     yield
 
 
 app = FastAPI(
     title="Reranker Service",
-    description="Cross-encoder reranking microservice — Phase 3",
-    version="0.1.0",
+    description="Cross-encoder reranking microservice — Phase 3 (ONNX Runtime)",
+    version="0.2.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
@@ -91,7 +82,12 @@ instrument_fastapi(app)
 
 @app.get("/health", response_model=HealthResponse)
 async def health() -> HealthResponse:
-    return HealthResponse(status="ok", model=_reranker_model_name())
+    return HealthResponse(
+        status="ok",
+        model=_reranker_model_name(),
+        backend="onnx",
+        device=active_provider(),
+    )
 
 
 @app.post("/rerank", response_model=RerankResponse)
@@ -100,6 +96,8 @@ async def rerank(request: RerankRequest) -> RerankResponse:
         span.set_attribute("candidate_count", len(request.candidates))
         span.set_attribute("model_name", _reranker_model_name())
         span.set_attribute("batch_size", request.batch_size)
+        span.set_attribute("backend", "onnx")
+        span.set_attribute("device", active_provider())
 
         if not request.candidates:
             span.set_attribute("result_count", 0)

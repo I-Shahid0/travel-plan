@@ -36,6 +36,8 @@ Or via Docker: `docker compose -f infra/docker/compose.yml up -d reranker`
 
 Query service calls `RERANKER_URL` (default `http://localhost:8001`). On failure, falls back to RRF order (`rerank_fallback=true` span).
 
+GPU (default): `RERANKER_DEVICE=cuda` — uses **ONNX Runtime GPU** (same stack as embed: `onnxruntime-gpu` CUDA 12 + `nvidia-cudnn-cu12`). Not PyTorch — `sentence-transformers` crashes on Windows here. Verify: `curl http://localhost:8001/health` → `"backend": "onnx"`, `"device": "CUDAExecutionProvider"`.
+
 ### Tracing (Jaeger)
 
 ```bash

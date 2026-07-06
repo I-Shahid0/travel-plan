@@ -1,22 +1,38 @@
 # Reranker Service
 
-Cross-encoder reranking microservice (Phase 3). Scores query–document pairs and returns reordered candidate IDs.
+Cross-encoder reranking microservice (Phase 3). Scores query–document pairs via **ONNX Runtime** and returns reordered candidate IDs.
 
-Implementation: `src/retrieval_engine/reranker_service/main.py`
+Implementation: `src/retrieval_engine/reranker_service/`
 
-## Why a separate service?
+## GPU stack (same family as embed — not PyTorch)
 
-The query service stays lightweight (FastEmbed ONNX embeddings + Postgres). Cross-encoder reranking is CPU/GPU-heavy and benefits from its own resource profile — the pedagogical setup for Phase 5 Kubernetes autoscaling.
+| Component | GPU stack |
+|-----------|-----------|
+| **Embed** (`uv run embed`) | FastEmbed + `onnxruntime-gpu` (CUDA 12 index) + `nvidia-cudnn-cu12` |
+| **Reranker** (`uv run serve-reranker`) | ONNX cross-encoder + `onnxruntime-gpu` (same CUDA 12 index) + `nvidia-cudnn-cu12` |
+
+**Do not use sentence-transformers/PyTorch for reranking on Windows** — `import sentence_transformers` hard-crashes (access violation) on this machine, the same reason embed moved to FastEmbed/ONNX.
+
+Default ONNX model: `temsa/ms-marco-MiniLM-L-6-v2-onnx-cpu-qint8` (upstream: `cross-encoder/ms-marco-MiniLM-L-6-v2`). Runs on GPU via `CUDAExecutionProvider` when `RERANKER_DEVICE=cuda`.
+
+Shared runtime fixes (from embed): CUDA 12 `onnxruntime-gpu` index, `nvidia-cudnn-cu12`, CPU onnxruntime blocked, `prepare_gpu_runtime()` PATH prep.
+
+Verify:
+
+```bash
+curl http://localhost:8001/health
+# {"backend":"onnx","device":"CUDAExecutionProvider",...}
+```
 
 ## Run locally
 
 ```bash
-uv sync --all-extras --extra reranker
+uv sync --all-extras
+uv pip uninstall onnxruntime   # if CPU wheel shadows GPU (fastembed #608)
 uv run serve-reranker
 ```
 
-- Health: http://localhost:8001/health
-- Rerank: `POST http://localhost:8001/rerank`
+Stop `serve-reranker` before `uv sync` on Windows (file lock on scripts).
 
 ## Docker
 
@@ -24,8 +40,6 @@ uv run serve-reranker
 docker compose -f infra/docker/compose.yml up -d reranker
 ```
 
-Query service calls it via `RERANKER_URL=http://localhost:8001` (default).
-
 ## Tracing
 
-Exports spans to the OTel Collector → Jaeger when `OTEL_ENABLED=true`. Jaeger UI: http://localhost:16686
+Jaeger UI: http://localhost:16686

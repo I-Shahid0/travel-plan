@@ -49,5 +49,49 @@
       "sample_size": 10000.0,
       "skipped": 0.0
     }
+  },
+  {
+    "phase": 3,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "retrieval": "hybrid_rrf_rerank",
+    "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "rrf_k": 60,
+    "timestamp": "2026-07-06T01:29:59.974025+00:00",
+    "beir_scifact": {
+      "ndcg@10": 0.6911863020156768,
+      "recall@10": 0.8111111111111111,
+      "mrr": 0.6609828042328042,
+      "queries": 300.0
+    },
+    "yelp_implicit": {
+      "ndcg@10": 0.16255934828072555,
+      "recall@10": 0.208,
+      "mrr": 0.14839047619047618,
+      "queries": 500.0,
+      "sample_size": 500.0,
+      "skipped": 0.0
+    }
+  },
+  {
+    "phase": 3,
+    "model": "sentence-transformers/all-MiniLM-L6-v2",
+    "retrieval": "hybrid_rrf_rerank",
+    "reranker_model": "cross-encoder/ms-marco-MiniLM-L-6-v2",
+    "rrf_k": 60,
+    "timestamp": "2026-07-06T01:40:15.268409+00:00",
+    "beir_scifact": {
+      "ndcg@10": 0.6852441263250468,
+      "recall@10": 0.8022222222222222,
+      "mrr": 0.6565066137566137,
+      "queries": 300.0
+    },
+    "yelp_implicit": {
+      "ndcg@10": 0.16255934828072555,
+      "recall@10": 0.208,
+      "mrr": 0.14839047619047618,
+      "queries": 500.0,
+      "sample_size": 500.0,
+      "skipped": 0.0
+    }
   }
 ]
