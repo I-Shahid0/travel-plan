@@ -48,7 +48,11 @@ class Settings(BaseSettings):
     itinerary_budget_ms: float = 6000.0
     itinerary_budget_usd: float = 0.002
     itinerary_search_timeout_sec: float = 15.0
-    itinerary_port: int = 8102
+    itinerary_port: int = 8002
+    ingestion_queue_key: str = "ingestion:jobs"
+    ingestion_job_status_prefix: str = "ingestion:job:"
+    ingestion_job_status_ttl_sec: int = 86_400
+    worker_poll_timeout_sec: float = 5.0
 
 
 settings = Settings()

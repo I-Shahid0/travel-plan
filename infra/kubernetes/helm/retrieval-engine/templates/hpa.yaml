@@ -1,0 +1,45 @@
+{{- if .Values.services.query.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-query
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "retrieval-engine.fullname" . }}-query
+  minReplicas: {{ .Values.services.query.hpa.minReplicas }}
+  maxReplicas: {{ .Values.services.query.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.services.query.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.services.reranker.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-reranker
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "retrieval-engine.fullname" . }}-reranker
+  minReplicas: {{ .Values.services.reranker.hpa.minReplicas }}
+  maxReplicas: {{ .Values.services.reranker.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.services.reranker.hpa.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,59 @@
+{{- if .Values.observability.jaeger.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-jaeger
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  type: ClusterIP
+  ports:
+    - port: 16686
+      targetPort: ui
+      name: ui
+    - port: 4317
+      targetPort: otlp
+      name: otlp
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-jaeger
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: jaeger
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: {{ .Values.observability.jaeger.image }}
+          env:
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          ports:
+            - containerPort: 16686
+              name: ui
+            - containerPort: 4317
+              name: otlp
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+{{- end }}

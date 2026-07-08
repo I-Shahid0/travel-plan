@@ -245,6 +245,8 @@ async def sparse_search(
 
 def main() -> None:
     """CLI: build Postgres FTS index on listings."""
+    from retrieval_engine.telemetry import setup_telemetry
+
     logging.basicConfig(
         level=logging.INFO,
         format="%(asctime)s %(levelname)s %(name)s — %(message)s",
@@ -252,6 +254,7 @@ def main() -> None:
     )
     parser = argparse.ArgumentParser(description="Build Postgres FTS index on listings")
     parser.parse_args()
+    setup_telemetry(service_name="index-fts-cli")
 
     from retrieval_engine.db.session import sync_session_factory
 

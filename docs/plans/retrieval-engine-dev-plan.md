@@ -151,7 +151,7 @@ A backend-heavy, measurable retrieval system in a travel/experiences domain, dep
 **Goal:** deploy the multi-service system; prove autoscaling under load.
 
 1. Containerize each service (multi-stage Docker builds — you've done this at ICNA Relief). Services: ingestion worker, query/orchestration, reranker, personalization, itinerary, plus stateful vector store + sparse index.
-2. Write manifests, then wrap in a **Helm chart**. Deploy locally on **kind** or **k3s** (keep replicas modest — see caveat).
+2. Write manifests, then wrap in a **Helm chart**. Deploy locally on **minikube** or **k3s** (keep replicas modest — see caveat).
 3. Add **readiness/liveness probes**, **resource requests/limits** (especially distinct limits for the reranker vs the lightweight query service — this is the payoff of the Phase 3 split).
 4. Make **ingestion a queue-driven worker** (Job/Deployment consuming a queue) rather than inline.
 5. Add **HPA**. **Load-test** with k6 or Locust to *prove* autoscaling works and generate throughput numbers.
@@ -195,7 +195,7 @@ A backend-heavy, measurable retrieval system in a travel/experiences domain, dep
 
 ## Standing caveats
 
-- **Cluster weight.** OpenSearch + vector DB + reranker + query + personalization + itinerary + Collector + Jaeger + Prometheus/Grafana is a lot. On kind/k3s keep replicas modest; Jaeger all-in-one with in-memory storage is fine for dev. Budget for one cheap cloud node if a laptop strains (16GB will).
+- **Cluster weight.** OpenSearch + vector DB + reranker + query + personalization + itinerary + Collector + Jaeger + Prometheus/Grafana is a lot. On minikube/k3s keep replicas modest; Jaeger all-in-one with in-memory storage is fine for dev. Budget for one cheap cloud node if a laptop strains (16GB will).
 - **CPU reranking is slow.** Small cross-encoders + aggressive batching are the difference between usable and not. The constraint is itself good learning.
 - **Don't lose the plot.** Retrieval quality + eval is the primary gap you're closing. Resilience and observability make it a credible backend system; they don't replace the core.
 - **Verify dataset terms** before committing to Yelp or the Airbnb/interactions pairing.

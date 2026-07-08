@@ -1,0 +1,27 @@
+{{- if .Values.bootstrap.sampleIngest.enabled }}
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-sample-ingest
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+  annotations:
+    helm.sh/hook: post-install,post-upgrade
+    helm.sh/hook-weight: "5"
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: 1
+  template:
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: enqueue
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-worker") }}
+          {{- include "retrieval-engine.envFrom" . }}
+          command:
+            - enqueue-job
+            - pipeline
+            - --limit
+            - {{ .Values.bootstrap.sampleIngest.limit | quote }}
+            - --no-reset
+{{- end }}

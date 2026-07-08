@@ -1,0 +1,23 @@
+1. Get service URLs:
+
+  minikube service list -p retrieval
+
+  Query:     minikube service {{ include "retrieval-engine.fullname" . }}-query -p retrieval --url
+  Itinerary: minikube service {{ include "retrieval-engine.fullname" . }}-itinerary -p retrieval --url
+  Jaeger UI: minikube service {{ include "retrieval-engine.fullname" . }}-jaeger -p retrieval --url
+
+2. Or port-forward (stable localhost ports):
+
+  kubectl port-forward svc/{{ include "retrieval-engine.fullname" . }}-query 8000:8000
+  kubectl port-forward svc/{{ include "retrieval-engine.fullname" . }}-itinerary 8002:8002
+  kubectl port-forward svc/{{ include "retrieval-engine.fullname" . }}-jaeger 16686:16686
+
+3. Enqueue ingestion work:
+
+  kubectl exec deploy/{{ include "retrieval-engine.fullname" . }}-worker -- \
+    enqueue-job pipeline --limit 5000
+
+4. Load test (requires k6 + corpus loaded):
+
+  kubectl port-forward svc/{{ include "retrieval-engine.fullname" . }}-query 8000:8000
+  BASE_URL=http://localhost:8000 k6 run tests/load/search.js

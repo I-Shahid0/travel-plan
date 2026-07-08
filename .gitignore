@@ -10,6 +10,7 @@ dist/
 build/
 .coverage
 htmlcov/
+.claude
 
 # Local data (large Yelp JSONL files)
 data/archive/*.json
@@ -21,3 +22,6 @@ postgres_data/
 # Runtime logs
 ingest-full.log
 eval-phase2.log
+
+# Helm values generated from .env at deploy time
+infra/kubernetes/helm/retrieval-engine/values.local.yaml

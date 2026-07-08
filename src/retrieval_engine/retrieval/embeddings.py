@@ -110,7 +110,7 @@ def resolve_onnx_providers() -> list[str]:
         if requested.startswith("cuda"):
             raise RuntimeError(
                 "EMBEDDING_DEVICE=cuda but CUDAExecutionProvider is unavailable. "
-                "Run: uv sync --all-extras  (installs onnxruntime-gpu + nvidia-cudnn-cu12). "
+                "Run: uv sync --group gpu  (installs onnxruntime-gpu + nvidia-cudnn-cu12). "
                 "Or set EMBEDDING_DEVICE=cpu."
             )
         _log("CUDA unavailable — using CPUExecutionProvider for embeddings")

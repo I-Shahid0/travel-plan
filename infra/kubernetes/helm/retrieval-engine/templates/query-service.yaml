@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-query
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: query
+spec:
+  type: {{ if .Values.nodePort.enabled }}NodePort{{ else }}ClusterIP{{ end }}
+  ports:
+    - port: {{ .Values.services.query.port }}
+      targetPort: http
+      name: http
+      {{- if .Values.nodePort.enabled }}
+      nodePort: {{ .Values.nodePort.query }}
+      {{- end }}
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: query
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-query
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: query
+spec:
+  replicas: {{ .Values.services.query.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: query
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: query
+    spec:
+      {{- if .Values.postgres.enabled }}
+      initContainers:
+        - name: wait-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z {{ include "retrieval-engine.postgresHost" . }} {{ .Values.postgres.port }}; do echo waiting for postgres; sleep 2; done
+      {{- end }}
+      containers:
+        - name: query
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-query") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.query.port }}
+              name: http
+          {{- include "retrieval-engine.envFrom" . }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: query-service
+          startupProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 5
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health/ready
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health/live
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.services.query.resources | nindent 12 }}

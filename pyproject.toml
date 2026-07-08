@@ -14,23 +14,40 @@ dependencies = [
     "pydantic-settings>=2.6.0",
     "python-dotenv>=1.0.1",
     "httpx>=0.28.0",
-    "fastembed>=0.5.0",
-    "onnxruntime-gpu>=1.19.0",
-    "nvidia-cudnn-cu12>=9.0.0",
-    "beir>=2.0.0",
     "numpy>=2.0.0",
+    "redis>=5.0.0",
     "opentelemetry-api>=1.27.0",
     "opentelemetry-sdk>=1.27.0",
     "opentelemetry-exporter-otlp-proto-grpc>=1.27.0",
     "opentelemetry-instrumentation-fastapi>=0.48b0",
     "opentelemetry-instrumentation-httpx>=0.48b0",
-    "transformers>=4.40.0",
-    "huggingface-hub>=0.23.0",
-    "google-generativeai>=0.8.0",
-    "redis>=5.0.0",
 ]
 
-[project.optional-dependencies]
+[dependency-groups]
+# Query-time embedding (fastembed + CPU ONNX)
+embed = [
+    "fastembed>=0.5.0",
+    "onnxruntime>=1.19.0",
+]
+# Cross-encoder reranker service (ONNX + HF tokenizer)
+reranker = [
+    "onnxruntime>=1.19.0",
+    "transformers>=4.40.0",
+    "huggingface-hub>=0.23.0",
+]
+# LLM query understanding + itinerary (lazy-imported when provider=google)
+llm = [
+    "google-generativeai>=0.8.0",
+]
+# Local Windows CUDA dev only — not used in container images
+gpu = [
+    "onnxruntime-gpu>=1.19.0",
+    "nvidia-cudnn-cu12>=9.0.0",
+]
+# Offline eval CLI only (pulls torch via beir → sentence-transformers)
+eval = [
+    "beir>=2.0.0",
+]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
@@ -46,6 +63,8 @@ eval = "retrieval_engine.eval.cli:main"
 serve = "retrieval_engine.main:serve"
 serve-reranker = "retrieval_engine.reranker_service.main:serve"
 serve-itinerary = "retrieval_engine.itinerary_service.main:serve"
+serve-worker = "retrieval_engine.ingestion.worker:main"
+enqueue-job = "retrieval_engine.ingestion.enqueue:main"
 
 [build-system]
 requires = ["hatchling"]
@@ -77,7 +96,6 @@ explicit = true
 [tool.uv.sources]
 onnxruntime-gpu = { index = "onnxruntime-cuda-12" }
 
-# fastembed pulls cpu onnxruntime which overwrites onnxruntime-gpu binaries.
-# https://github.com/qdrant/fastembed/issues/608
-[tool.uv]
-override-dependencies = ["onnxruntime ; python_version < '0'"]
+# Local GPU dev: fastembed pulls CPU onnxruntime which can overwrite onnxruntime-gpu.
+# After `uv sync --group gpu --group embed`, run: uv pip uninstall onnxruntime
+# Container images sync only the groups they need and are unaffected.

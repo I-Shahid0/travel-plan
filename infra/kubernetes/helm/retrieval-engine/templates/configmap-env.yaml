@@ -1,0 +1,12 @@
+{{- if .Values.appEnv }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-env
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+data:
+{{- range $key, $value := .Values.appEnv }}
+  {{ $key }}: {{ $value | quote }}
+{{- end }}
+{{- end }}

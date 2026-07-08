@@ -16,10 +16,82 @@ docs/
 infra/
   docker/              # Local Postgres + pgvector
   postgres/            # DB init scripts
-  kubernetes/          # Helm/manifests (Phase 5+)
+  kubernetes/          # Helm chart + minikube deploy scripts
 src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
+
+## Phase 5 — Kubernetes
+
+Multi-service deployment with Helm, queue-driven ingestion, HPA, and k6 load testing.
+
+Container images are **per-service slim builds** (~600MB–1GB each) using uv dependency
+groups — only what each service imports at runtime. Local GPU/eval deps stay out of
+images (`uv sync --group gpu --group eval` for dev only).
+
+```bash
+make docker-build
+# or individually:
+docker build -f infra/docker/Dockerfile --target query -t retrieval-query:latest .
+docker build -f infra/docker/Dockerfile --target reranker -t retrieval-reranker:latest .
+docker build -f infra/docker/Dockerfile --target itinerary -t retrieval-itinerary:latest .
+docker build -f infra/docker/Dockerfile --target worker -t retrieval-worker:latest .
+```
+
+Docker Compose stack (Postgres + Redis + Jaeger + all app services):
+
+```bash
+docker compose -f infra/docker/compose.yml up -d
+```
+
+### Queue-driven ingestion
+
+Enqueue work for the worker (`uv run serve-worker` or `worker` container):
+
+```bash
+uv run enqueue-job pipeline --limit 5000    # ingest → embed → index-fts
+uv run enqueue-job embed
+uv run enqueue-job status <job-id>
+```
+
+Batch CLIs (`ingest`, `embed`, `index-fts`) now export OTLP traces.
+
+### minikube + Helm
+
+Prerequisites: [minikube](https://minikube.sigs.k8s.io/docs/start/), kubectl, helm, Docker.
+
+**Config:** App env vars come from your `.env` file (same as `uv run serve`). The deploy
+script reads `.env`, rewrites connection URLs for in-cluster DNS (`retrieval-postgres`,
+`retrieval-redis`, etc.), and generates `values.local.yaml` for Helm. `values.yaml`
+only holds Kubernetes concerns (replicas, resources, HPA, images).
+
+```bash
+cp .env.example .env   # customize, then:
+make k8s-deploy
+make k8s-urls
+make k8s-reset         # delete all minikube profiles
+```
+
+After deploy, expose the query API for curl/k6 (pick one):
+
+```bash
+# Option A: minikube service URL (printed by deploy script)
+minikube service retrieval-query -p retrieval --url
+
+# Option B: port-forward (stable localhost ports)
+kubectl port-forward svc/retrieval-query 8000:8000
+curl http://localhost:8000/health
+```
+
+Load test:
+
+```bash
+kubectl port-forward svc/retrieval-query 8000:8000   # separate terminal
+BASE_URL=http://localhost:8000 k6 run tests/load/search.js
+```
+
+HPA scales query (2–6 replicas @ 70% CPU) and reranker (1–3 @ 75% CPU). Resource
+profiles: reranker heavy (2 CPU / 4Gi), query/itinerary light.
 
 ## Phase 4.5 — Personalization + Redis feature store
 
@@ -80,7 +152,7 @@ Retrieves top-100 via hybrid+RRF, reranks to top-k with a **separate cross-encod
 ### Reranker service
 
 ```bash
-uv sync --all-extras
+uv sync --all-groups
 uv run serve-reranker          # http://localhost:8001
 ```
 
@@ -218,7 +290,7 @@ Test interactions are sampled (`EVAL_SAMPLE_SIZE`, default 10k) for fast iterati
 ### Setup
 
 ```bash
-uv sync --all-extras
+uv sync --all-groups
 cp .env.example .env   # or copy manually on Windows
 make db-up
 ```
@@ -265,4 +337,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-5.md](docs/handoff/phase-5.md).
+**Next agent:** start with [docs/handoff/phase-6.md](docs/handoff/phase-6.md).

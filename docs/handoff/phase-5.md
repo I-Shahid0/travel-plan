@@ -1,7 +1,8 @@
 # Phase 5 Handoff — Kubernetes
 
+**Status:** ✅ Completed (2026-07-06)  
 **From:** Phase 4.5 (personalization + Redis feature store) and Phase 4.6 (LLM itinerary service)  
-**To:** Phase 5 agent  
+**To:** Phase 6 agent — [phase-6.md](phase-6.md)  
 **Date:** 2026-07-06  
 **Dev plan:** [docs/plans/retrieval-engine-dev-plan.md](../plans/retrieval-engine-dev-plan.md) (Phase 5 section)
 
@@ -114,20 +115,30 @@ curl -X POST http://localhost:8002/itinerary -H "Content-Type: application/json"
 
 ## Phase 5 tasks (from dev plan)
 
-1. **Containerize each service** (multi-stage builds). Services: query, reranker (Dockerfile exists: `infra/docker/Dockerfile.reranker`), itinerary, ingestion worker. Stateful: Postgres+pgvector, Redis.
-2. **Helm chart** + local **kind/k3s** deploy (modest replicas — see cluster-weight caveat).
-3. **Probes + resource requests/limits** — distinct profiles: reranker heavy, query/itinerary light.
-4. **Queue-driven ingestion worker** instead of inline CLI.
-5. **HPA + load test** (k6/Locust) → throughput/p95 numbers for the resume.
+1. **Containerize each service** (multi-stage builds). Services: query, reranker (Dockerfile exists: `infra/docker/Dockerfile.reranker`), itinerary, ingestion worker. Stateful: Postgres+pgvector, Redis. → `infra/docker/Dockerfile` + updated compose
+2. **Helm chart** + local **minikube** deploy (modest replicas — see cluster-weight caveat). → `infra/kubernetes/helm/retrieval-engine`
+3. **Probes + resource requests/limits** — distinct profiles: reranker heavy, query/itinerary light. → in Helm templates
+4. **Queue-driven ingestion worker** instead of inline CLI. → `ingestion/jobs.py`, `serve-worker`, `enqueue-job`
+5. **HPA + load test** (k6/Locust) → throughput/p95 numbers for the resume. → `templates/hpa.yaml`, `tests/load/search.js`
 
 **Prove it:** sustained N QPS at p95 < X ms across autoscaling services, reranker isolated to its own pool, backed by a load-test report.
+
+Run after corpus is loaded:
+
+```bash
+make k8s-deploy
+kubectl port-forward svc/retrieval-query 8000:8000
+BASE_URL=http://localhost:8000 k6 run tests/load/search.js
+```
+
+Results land in `results/loadtest-phase5.json`.
 
 ---
 
 ## Pitfalls / watch-outs for Phase 5
 
 1. **GPU assumptions.** Local reranker/embeddings default to CUDA (`RERANKER_DEVICE`, `EMBEDDING_DEVICE`). Container images must run CPU (`=cpu`) unless you wire GPU nodes; the ONNX qint8 reranker model was chosen for CPU viability.
-2. **Windows host.** Dev machine is Windows 11 + Docker Desktop; kind runs inside Docker Desktop's VM. Port conflicts with locally running `uv run` services.
+2. **Windows host.** Dev machine is Windows 11 + Docker Desktop; minikube uses the Docker driver. Port conflicts with locally running `uv run` services — stop them or use port-forward to non-conflicting ports.
 3. **Personalization needs Postgres *and* Redis in-cluster** — the pref embedding compute reads `interactions` + `listings.embedding` at request time on cache miss.
 4. **Itinerary needs `GOOGLE_API_KEY` secret** (or runs with the mock provider — fine for load tests, zero cost).
 5. **Batch CLI tracing still open** (`ingest`, `embed`, `index-fts`) — close during containerization; eval CLI is already done.

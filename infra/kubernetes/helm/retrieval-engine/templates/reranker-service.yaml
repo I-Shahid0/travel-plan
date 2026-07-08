@@ -1,0 +1,71 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-reranker
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reranker
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.services.reranker.port }}
+      targetPort: http
+      name: http
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: reranker
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-reranker
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reranker
+spec:
+  replicas: {{ .Values.services.reranker.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: reranker
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: reranker
+    spec:
+      containers:
+        - name: reranker
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-reranker") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.reranker.port }}
+              name: http
+          {{- include "retrieval-engine.envFrom" . }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: reranker-service
+            - name: RERANKER_ONNX_MODEL
+              value: temsa/ms-marco-MiniLM-L-6-v2-onnx-cpu-qint8
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 10
+            timeoutSeconds: 5
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            {{- toYaml .Values.services.reranker.resources | nindent 12 }}

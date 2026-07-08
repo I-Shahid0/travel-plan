@@ -1,0 +1,109 @@
+nameOverride: ""
+fullnameOverride: retrieval
+
+image:
+  registry: ""
+  pullPolicy: IfNotPresent
+  tag: latest
+
+services:
+  query:
+    replicaCount: 2
+    port: 8000
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1Gi
+    hpa:
+      enabled: true
+      minReplicas: 2
+      maxReplicas: 6
+      targetCPUUtilizationPercentage: 70
+  reranker:
+    replicaCount: 1
+    port: 8001
+    resources:
+      requests:
+        cpu: 500m
+        memory: 1Gi
+      limits:
+        cpu: "2"
+        memory: 4Gi
+    hpa:
+      enabled: true
+      minReplicas: 1
+      maxReplicas: 3
+      targetCPUUtilizationPercentage: 75
+  itinerary:
+    replicaCount: 1
+    port: 8002
+    resources:
+      requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
+        cpu: 500m
+        memory: 512Mi
+  worker:
+    replicaCount: 1
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 2Gi
+
+postgres:
+  enabled: true
+  image: pgvector/pgvector:pg16
+  port: 5432
+  user: retrieval
+  password: retrieval
+  database: retrieval
+  persistence:
+    size: 10Gi
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 2Gi
+
+redis:
+  enabled: true
+  image: redis:7-alpine
+  port: 6379
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
+observability:
+  jaeger:
+    enabled: true
+    image: jaegertracing/all-in-one:1.57
+  otelCollector:
+    enabled: true
+    image: otel/opentelemetry-collector-contrib:0.96.0
+
+# Populated at deploy time from .env by infra/kubernetes/scripts/load-env.*
+appEnv: {}
+appSecrets: {}
+
+bootstrap:
+  sampleIngest:
+    enabled: false
+    limit: 5000
+
+nodePort:
+  enabled: false
+  query: 30079
+  itinerary: 30081

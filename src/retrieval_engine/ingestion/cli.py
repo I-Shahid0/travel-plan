@@ -5,6 +5,7 @@ from datetime import date
 from pathlib import Path
 
 from retrieval_engine.ingestion.pipeline import run_ingestion
+from retrieval_engine.telemetry import setup_telemetry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -39,6 +40,7 @@ def main() -> None:
         help="Skip clearing existing tables before ingest",
     )
     args = parser.parse_args()
+    setup_telemetry(service_name="ingest-cli")
 
     try:
         stats = run_ingestion(

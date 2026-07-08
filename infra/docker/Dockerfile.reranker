@@ -1,4 +1,4 @@
-FROM python:3.12-slim
+FROM python:3.12-slim AS builder
 
 WORKDIR /app
 
@@ -7,14 +7,31 @@ RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock README.md ./
 COPY src ./src
 
-RUN uv sync --no-dev && uv pip uninstall -y onnxruntime
+RUN uv sync --frozen --no-dev --group reranker
 
-ENV RERANKER_ONNX_MODEL=temsa/ms-marco-MiniLM-L-6-v2-onnx-cpu-qint8
-ENV RERANKER_DEVICE=cuda
-ENV OTEL_ENABLED=true
-ENV OTEL_SERVICE_NAME=reranker-service
-ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
+FROM python:3.12-slim
+
+WORKDIR /app
+
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /app/.venv /app/.venv
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+ENV PATH="/app/.venv/bin:$PATH" \
+    PYTHONUNBUFFERED=1 \
+    RERANKER_ONNX_MODEL=temsa/ms-marco-MiniLM-L-6-v2-onnx-cpu-qint8 \
+    RERANKER_DEVICE=cpu \
+    OTEL_ENABLED=true \
+    OTEL_SERVICE_NAME=reranker-service \
+    OTEL_EXPORTER_OTLP_ENDPOINT=http://otel-collector:4317
 
 EXPOSE 8001
 
-CMD ["uv", "run", "uvicorn", "retrieval_engine.reranker_service.main:app", "--host", "0.0.0.0", "--port", "8001"]
+HEALTHCHECK --interval=15s --timeout=5s --start-period=60s --retries=3 \
+    CMD curl -fsS http://localhost:8001/health || exit 1
+
+CMD ["uvicorn", "retrieval_engine.reranker_service.main:app", "--host", "0.0.0.0", "--port", "8001"]

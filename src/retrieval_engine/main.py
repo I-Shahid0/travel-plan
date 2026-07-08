@@ -1,8 +1,9 @@
 from contextlib import asynccontextmanager
 
 import uvicorn
-from fastapi import Depends, FastAPI, Query
-from sqlalchemy import func, select
+from fastapi import Depends, FastAPI, Query, Response
+from sqlalchemy import func, select, text
+from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from retrieval_engine.api.schemas import EvalSplitResponse, HealthResponse, SearchResponse
@@ -26,8 +27,8 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 4.5 personalization",
-    version="0.6.0",
+    description="Personalized listing search & ranking — Phase 5 Kubernetes",
+    version="0.7.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
@@ -51,9 +52,32 @@ def _search_filters(
     )
 
 
+@app.get("/health/live")
+async def health_live() -> dict[str, str]:
+    """Process is up — used for Kubernetes liveness (no external deps)."""
+    return {"status": "ok"}
+
+
+@app.get("/health/ready", response_model=HealthResponse)
+async def health_ready(
+    response: Response,
+    session: AsyncSession = Depends(get_session),
+) -> HealthResponse:
+    """DB reachable — used for Kubernetes readiness."""
+    try:
+        await session.execute(text("SELECT 1"))
+    except Exception:
+        response.status_code = 503
+        return HealthResponse(status="unavailable", listings_count=None)
+    return HealthResponse(status="ok", listings_count=None)
+
+
 @app.get("/health", response_model=HealthResponse)
 async def health(session: AsyncSession = Depends(get_session)) -> HealthResponse:
-    count = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
+    try:
+        count = (await session.execute(select(func.count()).select_from(Listing))).scalar_one()
+    except ProgrammingError:
+        return HealthResponse(status="degraded", listings_count=0)
     return HealthResponse(status="ok", listings_count=count)
 
 

@@ -1,0 +1,66 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-itinerary
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: itinerary
+spec:
+  type: {{ if .Values.nodePort.enabled }}NodePort{{ else }}ClusterIP{{ end }}
+  ports:
+    - port: {{ .Values.services.itinerary.port }}
+      targetPort: http
+      name: http
+      {{- if .Values.nodePort.enabled }}
+      nodePort: {{ .Values.nodePort.itinerary }}
+      {{- end }}
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: itinerary
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-itinerary
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: itinerary
+spec:
+  replicas: {{ .Values.services.itinerary.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: itinerary
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: itinerary
+    spec:
+      containers:
+        - name: itinerary
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-itinerary") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.itinerary.port }}
+              name: http
+          {{- include "retrieval-engine.envFrom" . }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: itinerary-service
+            - name: ITINERARY_PORT
+              value: {{ .Values.services.itinerary.port | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.services.itinerary.resources | nindent 12 }}

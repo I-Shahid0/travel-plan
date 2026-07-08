@@ -4,6 +4,7 @@ import sys
 
 from retrieval_engine.db.session import sync_session_factory
 from retrieval_engine.retrieval.embeddings import embed_listings, prepare_gpu_runtime
+from retrieval_engine.telemetry import setup_telemetry
 
 logging.basicConfig(
     level=logging.INFO,
@@ -31,6 +32,7 @@ def main() -> None:
         help="Skip HNSW index creation after backfill",
     )
     args = parser.parse_args()
+    setup_telemetry(service_name="embed-cli")
 
     prepare_gpu_runtime()
 

@@ -56,7 +56,7 @@ services:
     ports:
       - "8001:8001"
     environment:
-      RERANKER_MODEL: cross-encoder/ms-marco-MiniLM-L-6-v2
+      RERANKER_DEVICE: cpu
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: reranker-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -70,6 +70,74 @@ services:
           memory: 1G
     depends_on:
       - otel-collector
+
+  query:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: query
+    container_name: retrieval-query
+    ports:
+      - "8000:8000"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
+      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
+      REDIS_URL: redis://redis:6379/0
+      RERANKER_URL: http://reranker:8001
+      EMBEDDING_DEVICE: cpu
+      RERANKER_DEVICE: cpu
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: query-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      reranker:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+
+  itinerary:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: itinerary
+    container_name: retrieval-itinerary
+    ports:
+      - "8002:8002"
+    environment:
+      QUERY_SERVICE_URL: http://query:8000
+      LLM_PROVIDER: mock
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: itinerary-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      - query
+      - otel-collector
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: worker
+    container_name: retrieval-worker
+    environment:
+      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
+      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
+      REDIS_URL: redis://redis:6379/0
+      EMBEDDING_DEVICE: cpu
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: ingestion-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
 
 volumes:
   postgres_data:

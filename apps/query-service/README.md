@@ -10,4 +10,4 @@ FastAPI search/ranking API. Phase 0 lives in the shared Python package at `src/r
 
 Run locally: `uv run serve` (from repo root).
 
-Containerization lands in Phase 5 under `infra/kubernetes/`.
+Container images: `infra/docker/Dockerfile` target `query`. Helm: `infra/kubernetes/helm/retrieval-engine`.

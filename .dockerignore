@@ -1,0 +1,10 @@
+# Minimal build context for infra/docker/Dockerfile and Dockerfile.reranker.
+# Those images only COPY pyproject.toml, uv.lock, README.md, and src/.
+
+**
+
+!pyproject.toml
+!uv.lock
+!README.md
+!src/
+!src/**
