@@ -10,12 +10,16 @@ from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel, Field
 
 from retrieval_engine.config import settings
-from retrieval_engine.query_understanding.llm import generate
+from retrieval_engine.metrics import record_fallback, setup_fastapi_metrics
+from retrieval_engine.query_understanding.llm import LLMResult, generate
 from retrieval_engine.query_understanding.types import LLMUsage
+from retrieval_engine.resilience import CircuitState, get_breaker
 from retrieval_engine.telemetry import get_tracer, instrument_fastapi, setup_telemetry
 
 logger = logging.getLogger(__name__)
 _tracer = get_tracer(__name__)
+
+LLM_BREAKER = "itinerary-llm"
 
 _SYSTEM_PROMPT = (
     "You are a travel planner. Given a traveler's intent and a ranked list of real "
@@ -25,9 +29,7 @@ _SYSTEM_PROMPT = (
 
 
 class ItineraryRequest(BaseModel):
-    query: str = Field(
-        ..., min_length=1, description="Traveler intent, e.g. 'weekend in Portland'"
-    )
+    query: str = Field(..., min_length=1, description="Traveler intent, e.g. 'weekend in Portland'")
     user_id: str | None = Field(None, description="Personalizes the underlying search")
     days: int = Field(1, ge=1, le=14)
     top_k: int | None = Field(None, ge=1, le=20, description="Listings to plan around")
@@ -84,11 +86,71 @@ def build_itinerary_prompt(query: str, listings: list[dict], *, days: int) -> st
     return "\n".join(lines)
 
 
-def within_budget(latency_ms: float, cost_usd: float) -> bool:
-    return (
-        latency_ms <= settings.itinerary_budget_ms
-        and cost_usd <= settings.itinerary_budget_usd
+def build_template_itinerary(query: str, listings: list[dict], *, days: int) -> str:
+    """Deterministic plan used when the LLM circuit is open — no external calls."""
+    lines = [
+        f"Itinerary for: {query} ({days} day(s))",
+        "(Generated from top-ranked places — planner temporarily degraded.)",
+        "",
+    ]
+    per_day = max(1, -(-len(listings) // days))
+    for day in range(days):
+        stops = listings[day * per_day : (day + 1) * per_day]
+        if not stops:
+            break
+        lines.append(f"Day {day + 1}:")
+        for i, listing in enumerate(stops, start=1):
+            parts = [listing.get("title") or listing.get("id", "place")]
+            if listing.get("categories"):
+                parts.append(", ".join(listing["categories"][:3]))
+            if listing.get("city"):
+                parts.append(listing["city"])
+            lines.append(f"  {i}. " + " — ".join(str(p) for p in parts))
+        lines.append("")
+    return "\n".join(lines).rstrip()
+
+
+def generate_plan(query: str, listings: list[dict], *, days: int, span) -> LLMResult:
+    """LLM plan behind a circuit breaker; templated plan while the circuit is open."""
+    breaker = get_breaker(LLM_BREAKER)
+    prompt = build_itinerary_prompt(query, listings, days=days)
+
+    if breaker.try_acquire():
+        try:
+            result = generate(
+                prompt,
+                system=_SYSTEM_PROMPT,
+                span_name="itinerary_generate",
+                raise_on_error=True,
+            )
+        except Exception as exc:
+            breaker.record_failure()
+            span.record_exception(exc)
+            logger.warning("Itinerary LLM failed — serving templated fallback: %s", exc)
+        else:
+            breaker.record_success()
+            span.set_attribute("circuit_open", False)
+            span.set_attribute("served_fallback", False)
+            return result
+    else:
+        logger.warning("Itinerary LLM circuit open — serving templated fallback")
+
+    span.set_attribute("circuit_open", breaker.state is CircuitState.OPEN)
+    span.set_attribute("served_fallback", True)
+    record_fallback(LLM_BREAKER)
+    text = build_template_itinerary(query, listings, days=days)
+    return LLMResult(
+        text=text,
+        input_tokens=0,
+        output_tokens=0,
+        model="template",
+        provider="template",
+        latency_ms=0.0,
     )
+
+
+def within_budget(latency_ms: float, cost_usd: float) -> bool:
+    return latency_ms <= settings.itinerary_budget_ms and cost_usd <= settings.itinerary_budget_usd
 
 
 async def _fetch_top_listings(query: str, *, user_id: str | None, top_k: int) -> list[dict]:
@@ -98,9 +160,7 @@ async def _fetch_top_listings(query: str, *, user_id: str | None, top_k: int) ->
     with _tracer.start_as_current_span("fetch_listings") as span:
         span.set_attribute("top_k", top_k)
         try:
-            async with httpx.AsyncClient(
-                timeout=settings.itinerary_search_timeout_sec
-            ) as client:
+            async with httpx.AsyncClient(timeout=settings.itinerary_search_timeout_sec) as client:
                 response = await client.get(
                     f"{settings.query_service_url.rstrip('/')}/search", params=params
                 )
@@ -119,16 +179,18 @@ async def _fetch_top_listings(query: str, *, user_id: str | None, top_k: int) ->
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_telemetry(service_name="itinerary-service")
+    get_breaker(LLM_BREAKER)  # register the state gauge at boot
     yield
 
 
 app = FastAPI(
     title="Itinerary Service",
     description="LLM trip planning over top-ranked listings — Phase 4.6 (isolated service)",
-    version="0.1.0",
+    version="0.2.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
+setup_fastapi_metrics(app)
 
 
 @app.get("/health", response_model=HealthResponse)
@@ -151,14 +213,11 @@ async def itinerary(request: ItineraryRequest) -> ItineraryResponse:
         span.set_attribute("itinerary.top_k", top_k)
 
         start = time.perf_counter()
-        listings = await _fetch_top_listings(
-            request.query, user_id=request.user_id, top_k=top_k
-        )
+        listings = await _fetch_top_listings(request.query, user_id=request.user_id, top_k=top_k)
         if not listings:
             raise HTTPException(status_code=404, detail="No listings found for query")
 
-        prompt = build_itinerary_prompt(request.query, listings, days=request.days)
-        result = generate(prompt, system=_SYSTEM_PROMPT, span_name="itinerary_generate")
+        result = generate_plan(request.query, listings, days=request.days, span=span)
 
         latency_ms = (time.perf_counter() - start) * 1000
         cost_usd = LLMUsage(

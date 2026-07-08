@@ -3,7 +3,7 @@ DOCKERFILE := infra/docker/Dockerfile
 HELM_CHART := infra/kubernetes/helm/retrieval-engine
 MINIKUBE_PROFILE := retrieval
 
-.PHONY: install dev db-up db-down db-logs otel-up redis-up ingest ingest-sample embed index-fts eval serve serve-reranker serve-itinerary serve-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls
+.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls
 
 install:
 	uv sync --all-groups
@@ -20,6 +20,12 @@ redis-up:
 
 otel-up:
 	$(COMPOSE) up -d jaeger otel-collector
+
+obs-up:
+	$(COMPOSE) up -d jaeger otel-collector prometheus grafana
+
+eval-degradation:
+	uv run eval --degradation --skip-beir
 
 db-down:
 	$(COMPOSE) down

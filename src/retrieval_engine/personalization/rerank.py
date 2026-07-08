@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from retrieval_engine.config import settings
 from retrieval_engine.db.models import Listing
+from retrieval_engine.metrics import time_stage
 from retrieval_engine.personalization.category_affinity import (
     category_similarity,
     compute_category_affinity,
@@ -140,9 +141,7 @@ def _apply_category_affinity(
         span.set_attribute("personalize.cold_start", True)
         return [item_id for item_id, _ in scored[:limit]], info
 
-    blended = blend_category_scores(
-        scored, affinity, id_to_categories, alpha=info.alpha
-    )
+    blended = blend_category_scores(scored, affinity, id_to_categories, alpha=info.alpha)
     info.applied = True
     span.set_attribute("personalize.cold_start", False)
     return [item_id for item_id, _ in blended[:limit]], info
@@ -166,7 +165,7 @@ def personalize_rerank_sync(
         candidate_count=len(scored),
     )
     start = time.perf_counter()
-    with _tracer.start_as_current_span("personalize") as span:
+    with _tracer.start_as_current_span("personalize") as span, time_stage("personalize"):
         span.set_attribute("personalize.user_id", user_id)
         span.set_attribute("personalize.alpha", info.alpha)
         span.set_attribute("personalize.signal", signal)
@@ -176,9 +175,7 @@ def personalize_rerank_sync(
             affinity = compute_category_affinity_sync(session, user_id)
             id_to_categories = {
                 row[0]: list(row[1]) if row[1] else []
-                for row in session.execute(
-                    _category_stmt([item_id for item_id, _ in scored])
-                ).all()
+                for row in session.execute(_category_stmt([item_id for item_id, _ in scored])).all()
             }
             ranked, info = _apply_category_affinity(
                 scored, affinity, id_to_categories, info, limit=limit, span=span
@@ -222,7 +219,7 @@ async def personalize_rerank(
         candidate_count=len(scored),
     )
     start = time.perf_counter()
-    with _tracer.start_as_current_span("personalize") as span:
+    with _tracer.start_as_current_span("personalize") as span, time_stage("personalize"):
         span.set_attribute("personalize.user_id", user_id)
         span.set_attribute("personalize.alpha", info.alpha)
         span.set_attribute("personalize.signal", signal)
@@ -233,9 +230,7 @@ async def personalize_rerank(
             id_to_categories = {
                 row[0]: list(row[1]) if row[1] else []
                 for row in (
-                    await session.execute(
-                        _category_stmt([item_id for item_id, _ in scored])
-                    )
+                    await session.execute(_category_stmt([item_id for item_id, _ in scored]))
                 ).all()
             }
             ranked, info = _apply_category_affinity(
@@ -252,9 +247,7 @@ async def personalize_rerank(
 
             id_to_embedding = {
                 row[0]: list(row[1])
-                for row in (
-                    await session.execute(_embedding_stmt([i for i, _ in scored]))
-                ).all()
+                for row in (await session.execute(_embedding_stmt([i for i, _ in scored]))).all()
             }
             ranked, info = _apply_embedding(
                 scored, preference, id_to_embedding, info, limit=limit, span=span

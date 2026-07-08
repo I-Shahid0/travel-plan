@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from retrieval_engine.api.schemas import ListingResult
 from retrieval_engine.config import settings
 from retrieval_engine.db.models import Listing
+from retrieval_engine.metrics import time_stage
 from retrieval_engine.personalization.rerank import personalize_rerank, personalize_rerank_sync
 from retrieval_engine.personalization.types import PersonalizationInfo
 from retrieval_engine.query_understanding import apply_query_understanding
@@ -41,9 +42,7 @@ def _fetch_listing_texts_sync(session: Session, ids: list[str]) -> dict[str, str
 async def _fetch_listing_texts_async(session: AsyncSession, ids: list[str]) -> dict[str, str]:
     if not ids:
         return {}
-    rows = (
-        (await session.execute(select(Listing).where(Listing.id.in_(ids)))).scalars().all()
-    )
+    rows = (await session.execute(select(Listing).where(Listing.id.in_(ids)))).scalars().all()
     return {row.id: listing_document(row) or row.title for row in rows}
 
 
@@ -85,10 +84,10 @@ def _rrf_candidates_sync(
     rrf_k: int,
 ) -> list[str]:
     dense_text = prepared.hyde_text or prepared.semantic_query
-    with _tracer.start_as_current_span("embed_query"):
+    with _tracer.start_as_current_span("embed_query"), time_stage("embed_query"):
         embed_query(dense_text)
 
-    with _tracer.start_as_current_span("dense_search") as span:
+    with _tracer.start_as_current_span("dense_search") as span, time_stage("dense_search"):
         if prepared.hyde_text:
             with _tracer.start_as_current_span("hyde_retrieve"):
                 dense_ids = _dense_ids_from_text_sync(
@@ -101,13 +100,13 @@ def _rrf_candidates_sync(
         span.set_attribute("result_count", len(dense_ids))
 
     sparse_query = prepared.raw_query if prepared.hyde_text else prepared.semantic_query
-    with _tracer.start_as_current_span("sparse_search") as span:
+    with _tracer.start_as_current_span("sparse_search") as span, time_stage("sparse_search"):
         sparse_ids = sparse_search_ids_sync(
             session, sparse_query, limit=candidate_k, filters=prepared.filters
         )
         span.set_attribute("result_count", len(sparse_ids))
 
-    with _tracer.start_as_current_span("fusion") as span:
+    with _tracer.start_as_current_span("fusion") as span, time_stage("fusion"):
         merged = rrf_merge(dense_ids, sparse_ids, k=rrf_k)
         span.set_attribute("candidate_count", len(merged))
         return merged
@@ -121,10 +120,10 @@ async def _rrf_candidates_async(
     rrf_k: int,
 ) -> list[str]:
     dense_text = prepared.hyde_text or prepared.semantic_query
-    with _tracer.start_as_current_span("embed_query"):
+    with _tracer.start_as_current_span("embed_query"), time_stage("embed_query"):
         embed_query(dense_text)
 
-    with _tracer.start_as_current_span("dense_search") as span:
+    with _tracer.start_as_current_span("dense_search") as span, time_stage("dense_search"):
         if prepared.hyde_text:
             with _tracer.start_as_current_span("hyde_retrieve"):
                 dense_ids = await _dense_ids_from_text_async(
@@ -137,13 +136,13 @@ async def _rrf_candidates_async(
         span.set_attribute("result_count", len(dense_ids))
 
     sparse_query = prepared.raw_query if prepared.hyde_text else prepared.semantic_query
-    with _tracer.start_as_current_span("sparse_search") as span:
+    with _tracer.start_as_current_span("sparse_search") as span, time_stage("sparse_search"):
         sparse_ids = await sparse_search_ids(
             session, sparse_query, limit=candidate_k, filters=prepared.filters
         )
         span.set_attribute("result_count", len(sparse_ids))
 
-    with _tracer.start_as_current_span("fusion") as span:
+    with _tracer.start_as_current_span("fusion") as span, time_stage("fusion"):
         merged = rrf_merge(dense_ids, sparse_ids, k=rrf_k)
         span.set_attribute("candidate_count", len(merged))
         return merged

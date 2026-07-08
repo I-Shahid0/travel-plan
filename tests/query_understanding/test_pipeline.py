@@ -19,6 +19,7 @@ def mock_llm_settings():
         mock_llm.llm_provider = "mock"
         mock_llm.google_api_key = ""
         mock_llm.llm_model = "mock"
+        mock_llm.llm_fault_inject = False
         mock_pipeline.query_understanding_enabled = True
         mock_pipeline.query_technique = "none"
         mock_pipeline.multi_query_count = 3

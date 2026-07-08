@@ -21,6 +21,62 @@ src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
 
+## Phase 6 — Resilience + full observability
+
+Circuit breakers with measurable graceful degradation, Prometheus + Grafana metrics,
+and KEDA queue-depth autoscaling.
+
+### Circuit breakers (hand-rolled state machine, `src/retrieval_engine/resilience/`)
+
+| Breaker | Guards | Fallback when open |
+|---------|--------|--------------------|
+| `reranker` (query service) | Cross-encoder HTTP call | Fusion (RRF) order with rank-derived scores |
+| `itinerary-llm` (itinerary service) | LLM generation | Deterministic templated day-by-day plan |
+| `ingestion-deps` (worker) | Job execution (DB + embedding) | **Pause consumption** — requeue without counting the attempt; work stays on the queue, never dumped to the DLQ |
+
+Closed → open after `BREAKER_FAILURE_THRESHOLD` (5) consecutive failures; half-open
+single probe after `BREAKER_RESET_TIMEOUT_SEC` (30s). Worker retry policy: failures
+with a *healthy* dependency count toward `INGESTION_MAX_ATTEMPTS` (3), then dead-letter
+to `ingestion:jobs:dead`.
+
+Breaker state is emitted to **both** traces (`circuit_open`, `served_fallback` span
+attributes) and metrics (`circuit_breaker_state` gauge, `served_fallback_total`
+counter) — find the exact degraded request in Jaeger, watch how long the breaker
+stayed open in Grafana. Debug endpoint: `GET /breakers`.
+
+### Metrics (Prometheus + Grafana)
+
+Every FastAPI service exposes `/metrics` (QPS, latency histograms); the worker serves
+a standalone metrics server on `:9100` (queue depth, job outcomes). Per-stage search
+latency: `search_stage_latency_seconds{stage=embed_query|dense_search|sparse_search|fusion|rerank|personalize}`.
+
+```bash
+make obs-up               # Jaeger + OTel Collector + Prometheus + Grafana
+# Grafana: http://localhost:3000 (anonymous admin) — dashboard auto-provisioned
+# Prometheus: http://localhost:9090
+```
+
+### KEDA
+
+Worker scales on **Redis queue depth** (not CPU); optional reranker scaling on
+Prometheus p95 latency (`keda.reranker.enabled`, replaces the CPU HPA). The minikube
+deploy script installs the KEDA operator automatically.
+
+### Degradation demo (prove-it)
+
+```bash
+# Offline: quantify the NDCG cost of the reranker fallback (same sample, two passes)
+uv run eval --degradation --skip-beir     # appends "phase": 6 record with degradation_cost
+
+# Live: kill the reranker, watch the breaker open
+docker compose -f infra/docker/compose.yml stop reranker
+# → 5 slow requests trip the breaker; Grafana shows circuit_breaker_state=2,
+#   Jaeger spans show circuit_open=true served_fallback=true; requests stay fast.
+docker compose -f infra/docker/compose.yml start reranker   # half-open probe recloses it
+```
+
+Fault injection for the itinerary breaker without a real LLM outage: `LLM_FAULT_INJECT=true`.
+
 ## Phase 5 — Kubernetes
 
 Multi-service deployment with Helm, queue-driven ingestion, HPA, and k6 load testing.
@@ -337,4 +393,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-6.md](docs/handoff/phase-6.md).
+**Next agent:** start with [docs/handoff/phase-7.md](docs/handoff/phase-7.md).

@@ -1,0 +1,51 @@
+{{- if .Values.keda.enabled }}
+# Requires the KEDA operator (installed by the deploy script):
+#   helm repo add kedacore https://kedacore.github.io/charts
+#   helm install keda kedacore/keda -n keda --create-namespace
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-worker
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: worker
+spec:
+  scaleTargetRef:
+    name: {{ include "retrieval-engine.fullname" . }}-worker
+  minReplicaCount: {{ .Values.keda.worker.minReplicas }}
+  maxReplicaCount: {{ .Values.keda.worker.maxReplicas }}
+  pollingInterval: 10
+  cooldownPeriod: 60
+  triggers:
+    # Scale on real work waiting, not CPU: Redis queue depth.
+    - type: redis
+      metadata:
+        address: {{ include "retrieval-engine.redisHost" . }}:{{ .Values.redis.port }}
+        listName: ingestion:jobs
+        listLength: {{ .Values.keda.worker.listLength | quote }}
+{{- if .Values.keda.reranker.enabled }}
+---
+# Replaces the CPU HPA for the reranker (set services.reranker.hpa.enabled=false):
+# scale on the p95 request latency the service actually delivers.
+apiVersion: keda.sh/v1alpha1
+kind: ScaledObject
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-reranker
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: reranker
+spec:
+  scaleTargetRef:
+    name: {{ include "retrieval-engine.fullname" . }}-reranker
+  minReplicaCount: {{ .Values.keda.reranker.minReplicas }}
+  maxReplicaCount: {{ .Values.keda.reranker.maxReplicas }}
+  pollingInterval: 15
+  cooldownPeriod: 120
+  triggers:
+    - type: prometheus
+      metadata:
+        serverAddress: http://{{ include "retrieval-engine.fullname" . }}-prometheus:9090
+        query: histogram_quantile(0.95, sum by (le) (rate(http_request_duration_seconds_bucket{job="reranker"}[2m]))) * 1000
+        threshold: {{ .Values.keda.reranker.p95ThresholdMs | quote }}
+{{- end }}
+{{- end }}

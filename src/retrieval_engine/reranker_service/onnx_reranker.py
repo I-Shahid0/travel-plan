@@ -28,9 +28,7 @@ def resolve_ort_providers() -> list[str]:
         return ["CUDAExecutionProvider", "CPUExecutionProvider"]
 
     if requested.startswith("cuda"):
-        logger.warning(
-            "RERANKER_DEVICE=cuda but CUDAExecutionProvider unavailable — using CPU"
-        )
+        logger.warning("RERANKER_DEVICE=cuda but CUDAExecutionProvider unavailable — using CPU")
     return ["CPUExecutionProvider"]
 
 
@@ -75,9 +73,7 @@ def score_pairs(query: str, texts: list[str], *, batch_size: int) -> list[float]
             max_length=128,
         )
         inputs = {
-            name: value.astype(np.int64)
-            for name, value in encoded.items()
-            if name in input_names
+            name: value.astype(np.int64) for name, value in encoded.items() if name in input_names
         }
         batch_scores = session.run(None, inputs)[0]
         scores.extend(float(score) for score in batch_scores.reshape(-1))

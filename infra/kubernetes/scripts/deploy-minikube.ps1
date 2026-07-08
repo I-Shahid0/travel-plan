@@ -186,6 +186,17 @@ $Chart = Join-Path $Root "infra\kubernetes\helm\retrieval-engine"
 
 Ensure-Minikube -Profile $Profile
 
+Write-Host "==> Installing KEDA operator (ScaledObject CRDs required by the chart)"
+Invoke-External -AllowFailure {
+    helm repo add kedacore https://kedacore.github.io/charts
+} | Out-Null
+Invoke-External -AllowFailure {
+    helm repo update kedacore
+} | Out-Null
+Invoke-External {
+    helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --wait --timeout 5m
+} | Out-Null
+
 Write-Host "==> Building container images"
 $imageTag = "dev-$(Get-Date -Format 'yyyyMMddHHmmss')"
 foreach ($target in @("query", "reranker", "itinerary", "worker")) {
@@ -240,6 +251,8 @@ Get-NativeOutput { kubectl get pods -l "app.kubernetes.io/instance=$Release" } |
 $querySvc = "$Release-query"
 $itinerarySvc = "$Release-itinerary"
 $jaegerSvc = "$Release-jaeger"
+$grafanaSvc = "$Release-grafana"
+$prometheusSvc = "$Release-prometheus"
 
 Write-Host ""
 Write-Host "Services (minikube NodePort URLs):"
@@ -255,3 +268,5 @@ Write-Host "Or port-forward (works without minikube tunnel):"
 Write-Host "  kubectl port-forward svc/$querySvc 8000:8000"
 Write-Host "  kubectl port-forward svc/$itinerarySvc 8002:8002"
 Write-Host "  kubectl port-forward svc/$jaegerSvc 16686:16686"
+Write-Host "  kubectl port-forward svc/$grafanaSvc 3000:3000"
+Write-Host "  kubectl port-forward svc/$prometheusSvc 9090:9090"

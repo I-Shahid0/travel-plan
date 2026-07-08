@@ -11,10 +11,13 @@ from retrieval_engine.api.search import keyword_search
 from retrieval_engine.config import settings
 from retrieval_engine.db.models import EvalSplitMetadata, Listing
 from retrieval_engine.db.session import get_session
+from retrieval_engine.metrics import setup_fastapi_metrics
 from retrieval_engine.query_understanding import TECHNIQUES
+from retrieval_engine.resilience import get_breaker
 from retrieval_engine.retrieval.dense import _fetch_listings_by_ids_async, dense_search
 from retrieval_engine.retrieval.filters import SearchFilters
 from retrieval_engine.retrieval.hybrid import hybrid_search
+from retrieval_engine.retrieval.rerank import RERANKER_BREAKER
 from retrieval_engine.retrieval.sparse import sparse_search_ids
 from retrieval_engine.telemetry import instrument_fastapi, setup_telemetry
 
@@ -22,16 +25,18 @@ from retrieval_engine.telemetry import instrument_fastapi, setup_telemetry
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     setup_telemetry(service_name="query-service")
+    get_breaker(RERANKER_BREAKER)  # register the state gauge at boot
     yield
 
 
 app = FastAPI(
     title="Retrieval Engine",
-    description="Personalized listing search & ranking — Phase 5 Kubernetes",
-    version="0.7.0",
+    description="Personalized listing search & ranking — Phase 6 resilience + observability",
+    version="0.8.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
+setup_fastapi_metrics(app)
 
 
 def _search_filters(
@@ -95,9 +100,7 @@ async def search(
         None,
         description=f"Query understanding technique ({', '.join(TECHNIQUES)})",
     ),
-    user_id: str | None = Query(
-        None, min_length=1, description="User ID for personalized ranking"
-    ),
+    user_id: str | None = Query(None, min_length=1, description="User ID for personalized ranking"),
     personalize: bool = Query(
         True, description="Blend user preference into ranking (requires user_id)"
     ),
@@ -147,6 +150,20 @@ async def search(
             "usage": prepared.usage_summary(),
         },
     )
+
+
+@app.get("/breakers")
+async def breakers() -> dict[str, dict]:
+    """Circuit breaker states for this process (demo/debug; Grafana uses /metrics)."""
+    breaker = get_breaker(RERANKER_BREAKER)
+    return {
+        breaker.name: {
+            "state": breaker.state.value,
+            "failure_count": breaker.failure_count,
+            "failure_threshold": breaker.failure_threshold,
+            "reset_timeout_sec": breaker.reset_timeout_sec,
+        }
+    }
 
 
 @app.get("/eval/split", response_model=EvalSplitResponse)

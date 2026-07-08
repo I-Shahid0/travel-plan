@@ -36,6 +36,9 @@ spec:
       labels:
         {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: query
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.services.query.port | quote }}
     spec:
       {{- if .Values.postgres.enabled }}
       initContainers:

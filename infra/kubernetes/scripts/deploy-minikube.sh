@@ -70,6 +70,11 @@ fi
 
 minikube addons enable metrics-server -p "$PROFILE" || true
 
+echo "==> Installing KEDA operator (ScaledObject CRDs required by the chart)"
+helm repo add kedacore https://kedacore.github.io/charts || true
+helm repo update kedacore || true
+helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --wait --timeout 5m
+
 echo "==> Building container images"
 IMAGE_TAG="dev-$(date +%Y%m%d%H%M%S)"
 for target in query reranker itinerary worker; do
@@ -112,6 +117,8 @@ kubectl get pods -l "app.kubernetes.io/instance=$RELEASE"
 
 echo ""
 echo "Quick access:"
-echo "  Query:     minikube service ${RELEASE}-query -p $PROFILE --url"
-echo "  Itinerary: minikube service ${RELEASE}-itinerary -p $PROFILE --url"
-echo "  Jaeger UI: minikube service ${RELEASE}-jaeger -p $PROFILE --url"
+echo "  Query:      minikube service ${RELEASE}-query -p $PROFILE --url"
+echo "  Itinerary:  minikube service ${RELEASE}-itinerary -p $PROFILE --url"
+echo "  Jaeger UI:  minikube service ${RELEASE}-jaeger -p $PROFILE --url"
+echo "  Grafana:    minikube service ${RELEASE}-grafana -p $PROFILE --url"
+echo "  Prometheus: kubectl port-forward svc/${RELEASE}-prometheus 9090:9090"

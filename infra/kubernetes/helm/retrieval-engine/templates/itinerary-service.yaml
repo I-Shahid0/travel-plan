@@ -36,6 +36,9 @@ spec:
       labels:
         {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
         app.kubernetes.io/component: itinerary
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.services.itinerary.port | quote }}
     spec:
       containers:
         - name: itinerary

@@ -48,6 +48,30 @@ services:
     depends_on:
       - jaeger
 
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: retrieval-prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: retrieval-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
   reranker:
     build:
       context: ../..
@@ -131,6 +155,9 @@ services:
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: ingestion-worker
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      WORKER_METRICS_PORT: "9100"
+    expose:
+      - "9100"
     depends_on:
       postgres:
         condition: service_healthy

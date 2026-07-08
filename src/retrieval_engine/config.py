@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     otel_service_name: str = "query-service"
     otel_exporter_otlp_endpoint: str = "http://localhost:4317"
     llm_provider: str = "mock"
+    llm_fault_inject: bool = False
     google_api_key: str = ""
     llm_model: str = "gemini-2.0-flash"
     query_understanding_enabled: bool = True
@@ -50,9 +51,15 @@ class Settings(BaseSettings):
     itinerary_search_timeout_sec: float = 15.0
     itinerary_port: int = 8002
     ingestion_queue_key: str = "ingestion:jobs"
+    ingestion_dlq_key: str = "ingestion:jobs:dead"
     ingestion_job_status_prefix: str = "ingestion:job:"
     ingestion_job_status_ttl_sec: int = 86_400
+    ingestion_max_attempts: int = 3
     worker_poll_timeout_sec: float = 5.0
+    breaker_failure_threshold: int = 5
+    breaker_reset_timeout_sec: float = 30.0
+    metrics_enabled: bool = True
+    worker_metrics_port: int = 9100
 
 
 settings = Settings()

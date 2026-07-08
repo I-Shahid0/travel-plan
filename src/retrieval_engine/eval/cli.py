@@ -16,6 +16,8 @@ from retrieval_engine.eval.implicit_runner import (
 )
 from retrieval_engine.eval.tradeoff import build_tradeoff_chart, load_baseline_records
 from retrieval_engine.query_understanding import TECHNIQUES
+from retrieval_engine.resilience import get_breaker
+from retrieval_engine.retrieval.rerank import RERANKER_BREAKER
 from retrieval_engine.telemetry import setup_telemetry
 
 logging.basicConfig(
@@ -81,6 +83,53 @@ def run_personalization_ab(*, sample_size: int | None, k: int | None) -> None:
         "yelp_implicit_query_only": {**qo_core, "latency": qo_latency},
         "yelp_implicit_personalized": {**p_core, "latency": p_latency},
         "personalization_delta": delta,
+    }
+    path = append_baseline(record)
+    print(f"Baseline recorded to {path}")
+    print(json.dumps(record, indent=2))
+
+
+def run_degradation_ab(*, sample_size: int | None, k: int | None) -> None:
+    """Phase 6 prove-it: quantify the quality cost of the reranker breaker fallback.
+
+    Pass 1 runs the implicit track with the reranker live; pass 2 forces the
+    reranker circuit open so every query serves the fusion-ranked fallback —
+    the exact code path a real outage takes. The delta is the NDCG cost of
+    degradation.
+    """
+    k = k or settings.eval_k
+    breaker = get_breaker(RERANKER_BREAKER)
+
+    logger.info("Degradation A/B — pass 1/2: reranker live")
+    live = run_implicit_eval(sample_size=sample_size, k=k)
+
+    logger.info("Degradation A/B — pass 2/2: reranker circuit forced open (fusion fallback)")
+    breaker.force_open()
+    try:
+        degraded = run_implicit_eval(sample_size=sample_size, k=k)
+    finally:
+        breaker.reset()
+
+    live_core, live_latency, _ = _strip_eval_extras(live)
+    deg_core, deg_latency, _ = _strip_eval_extras(degraded)
+
+    metric_keys = (f"ndcg@{k}", f"recall@{k}", "mrr")
+    cost = {
+        key: deg_core.get(key, 0.0) - live_core.get(key, 0.0)
+        for key in metric_keys
+        if key in deg_core and key in live_core
+    }
+
+    record = {
+        "phase": 6,
+        "model": settings.embedding_model,
+        "retrieval": "hybrid_rrf_rerank",
+        "reranker_model": settings.reranker_model,
+        "rrf_k": settings.rrf_k,
+        "timestamp": datetime.now(UTC).isoformat(),
+        "yelp_implicit_reranker_live": {**live_core, "latency": live_latency},
+        "yelp_implicit_breaker_open": {**deg_core, "latency": deg_latency},
+        "degradation_cost": cost,
     }
     path = append_baseline(record)
     print(f"Baseline recorded to {path}")
@@ -262,6 +311,11 @@ def main() -> None:
         default=None,
         help="Personalization signal type (default: PERSONALIZE_SIGNAL)",
     )
+    parser.add_argument(
+        "--degradation",
+        action="store_true",
+        help="Phase 6 A/B: reranker live vs circuit forced open, record NDCG cost",
+    )
     args = parser.parse_args()
 
     if args.tradeoff:
@@ -270,6 +324,10 @@ def main() -> None:
         return
 
     setup_telemetry(service_name="eval")
+
+    if args.degradation:
+        run_degradation_ab(sample_size=args.sample_size, k=args.k)
+        return
 
     if args.phase_4_7:
         run_phase_47_eval(sample_size=args.sample_size, k=args.k)
@@ -332,8 +390,7 @@ def main() -> None:
 
     if phase == 4:
         record["latency"] = {
-            key: sum(values) / len(values) if values else 0.0
-            for key, values in latency_agg.items()
+            key: sum(values) / len(values) if values else 0.0 for key, values in latency_agg.items()
         }
         record["llm_cost"] = {
             key: sum(values) / len(values) if values else 0.0 for key, values in cost_agg.items()

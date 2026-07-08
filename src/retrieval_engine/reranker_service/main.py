@@ -9,6 +9,7 @@ from fastapi import FastAPI
 from pydantic import BaseModel, Field
 
 from retrieval_engine.config import settings
+from retrieval_engine.metrics import setup_fastapi_metrics
 from retrieval_engine.reranker_service.onnx_reranker import active_provider, score_pairs
 from retrieval_engine.telemetry import get_tracer, instrument_fastapi, setup_telemetry
 
@@ -74,10 +75,11 @@ async def lifespan(app: FastAPI):
 app = FastAPI(
     title="Reranker Service",
     description="Cross-encoder reranking microservice — Phase 3 (ONNX Runtime)",
-    version="0.2.0",
+    version="0.3.0",
     lifespan=lifespan,
 )
 instrument_fastapi(app)
+setup_fastapi_metrics(app)
 
 
 @app.get("/health", response_model=HealthResponse)

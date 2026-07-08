@@ -93,6 +93,27 @@ observability:
   otelCollector:
     enabled: true
     image: otel/opentelemetry-collector-contrib:0.96.0
+  prometheus:
+    enabled: true
+    image: prom/prometheus:v2.53.0
+  grafana:
+    enabled: true
+    image: grafana/grafana:11.1.0
+
+# Requires the KEDA operator (deploy script installs it when enabled).
+keda:
+  enabled: true
+  worker:
+    minReplicas: 1
+    maxReplicas: 4
+    listLength: 5 # target jobs waiting per worker replica
+  reranker:
+    # Latency-based scaling via Prometheus; set services.reranker.hpa.enabled=false
+    # when turning this on (KEDA manages its own HPA for the target).
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 3
+    p95ThresholdMs: 500
 
 # Populated at deploy time from .env by infra/kubernetes/scripts/load-env.*
 appEnv: {}
@@ -107,3 +128,4 @@ nodePort:
   enabled: false
   query: 30079
   itinerary: 30081
+  grafana: 30030

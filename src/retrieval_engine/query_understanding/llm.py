@@ -165,14 +165,23 @@ def generate(
     system: str = "",
     json_mode: bool = False,
     span_name: str = "llm_call",
+    raise_on_error: bool = False,
 ) -> LLMResult:
+    """Generate text via the configured provider.
+
+    With raise_on_error=True provider failures propagate to the caller (used by
+    circuit-breaker call sites that own their own fallback); otherwise they
+    degrade silently to the mock provider.
+    """
+    if settings.llm_fault_inject:
+        raise RuntimeError("LLM fault injection enabled (LLM_FAULT_INJECT=true)")
     provider = settings.llm_provider.lower()
     if provider == "google" and settings.google_api_key:
         try:
-            return _google_generate(
-                prompt, system=system, json_mode=json_mode, span_name=span_name
-            )
+            return _google_generate(prompt, system=system, json_mode=json_mode, span_name=span_name)
         except Exception:
+            if raise_on_error:
+                raise
             logger.exception("Google LLM call failed; falling back to mock")
     return _mock_generate(prompt, system=system, json_mode=json_mode, span_name=span_name)
 
