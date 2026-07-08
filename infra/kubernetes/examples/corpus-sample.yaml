@@ -1,0 +1,8 @@
+apiVersion: retrieval.example.com/v1alpha1
+kind: Corpus
+metadata:
+  name: yelp-dev-sample
+spec:
+  limit: 5000
+  reset: true
+  pipeline: pipeline

@@ -50,6 +50,10 @@ gpu = [
 eval = [
     "beir>=2.0.0",
 ]
+# Corpus CRD operator (kubernetes client; optional stretch)
+operator = [
+    "kubernetes>=31.0.0",
+]
 dev = [
     "pytest>=8.3.0",
     "pytest-asyncio>=0.24.0",
@@ -67,6 +71,7 @@ serve-reranker = "retrieval_engine.reranker_service.main:serve"
 serve-itinerary = "retrieval_engine.itinerary_service.main:serve"
 serve-worker = "retrieval_engine.ingestion.worker:main"
 enqueue-job = "retrieval_engine.ingestion.enqueue:main"
+serve-corpus-operator = "retrieval_engine.operator.main:serve"
 
 [build-system]
 requires = ["hatchling"]

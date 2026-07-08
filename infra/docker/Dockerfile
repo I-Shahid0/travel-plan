@@ -25,6 +25,9 @@ RUN uv sync --frozen --no-dev --group llm
 FROM builder-base AS builder-worker
 RUN uv sync --frozen --no-dev --group embed
 
+FROM builder-base AS builder-operator
+RUN uv sync --frozen --no-dev --group embed --group operator
+
 FROM python:3.12-slim AS runtime-base
 
 WORKDIR /app
@@ -88,3 +91,13 @@ COPY src ./src
 
 ENV OTEL_SERVICE_NAME=ingestion-worker
 CMD ["python", "-m", "retrieval_engine.ingestion.worker"]
+
+
+FROM runtime-base AS corpus-operator
+
+COPY --from=builder-operator /app/.venv /app/.venv
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+ENV OTEL_SERVICE_NAME=corpus-operator
+CMD ["serve-corpus-operator"]

@@ -124,6 +124,18 @@ bootstrap:
     enabled: false
     limit: 5000
 
+# Optional stretch — Corpus CRD operator provisions indexes via the ingestion queue.
+corpusOperator:
+  enabled: false
+  pollIntervalSec: 5
+  resources:
+    requests:
+      cpu: 50m
+      memory: 128Mi
+    limits:
+      cpu: 250m
+      memory: 256Mi
+
 nodePort:
   enabled: false
   query: 30079

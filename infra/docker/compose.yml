@@ -40,6 +40,8 @@ services:
     image: otel/opentelemetry-collector-contrib:0.96.0
     container_name: retrieval-otel-collector
     command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      JAEGER_ENDPOINT: jaeger:4317
     volumes:
       - ../otel/collector-config.yaml:/etc/otelcol/config.yaml:ro
     ports:

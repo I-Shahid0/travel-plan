@@ -1,105 +1,93 @@
 # Phase 7 Handoff — Stretch (tail-based sampling, operator/CRD)
 
+**Status:** ✅ Completed (2026-07-08)  
 **From:** Phase 6 (Resilience + full observability)  
-**To:** Phase 7 agent  
-**Date:** 2026-07-08  
 **Dev plan:** [docs/plans/retrieval-engine-dev-plan.md](../plans/retrieval-engine-dev-plan.md) (Phase 7 section)
 
 > Prior handoff: [phase-6.md](phase-6.md).
 
 ---
 
-## What Phase 6 delivered
+## What Phase 7 delivered
 
 | Capability | Status |
 |------------|--------|
-| Hand-rolled circuit breaker state machine (`resilience/breaker.py`: closed → open → half-open, single-probe, force-open for eval) | Done |
-| **Reranker breaker** in query path — open circuit serves fusion-ranked fallback without touching the network | Done |
-| **Itinerary LLM breaker** — templated day-by-day plan fallback (`llm_provider: "template"` in response) | Done |
-| **Ingestion worker breaker** — pause consumption while open; requeue without counting attempt; healthy-dependency failures count to `INGESTION_MAX_ATTEMPTS` (3) then DLQ (`ingestion:jobs:dead`) | Done |
-| Degradation wired into traces: `circuit_open` / `served_fallback` span attributes on `rerank` and `itinerary` spans | Done |
-| Prometheus metrics: `circuit_breaker_state` gauge, `circuit_breaker_transitions_total`, `served_fallback_total`, `search_stage_latency_seconds{stage}`, `ingestion_queue_depth`, `ingestion_jobs_total{outcome}` + HTTP QPS/latency via prometheus-fastapi-instrumentator | Done |
-| `/metrics` on query/reranker/itinerary apps; standalone `:9100` metrics server on the worker; `GET /breakers` debug endpoint on query | Done |
-| Prometheus + Grafana in Compose (`make obs-up`) with auto-provisioned dashboard (breaker state timeline, fallback rate, QPS, p95/p99, per-stage latency, queue depth, job outcomes) | Done — verified live |
-| Prometheus + Grafana in Helm (pod-annotation discovery + RBAC, dashboard ConfigMap) | Done — `helm lint`/`template` verified |
-| KEDA: worker ScaledObject on Redis queue depth; optional reranker ScaledObject on Prometheus p95 (`keda.reranker.enabled`) | Done (templates + operator install in deploy scripts) |
-| `uv run eval --degradation` — A/B: reranker live vs circuit **forced open**, records `"phase": 6` with `degradation_cost` deltas to `results/baseline.json` | Done (code) — **not yet run, see below** |
-| `LLM_FAULT_INJECT=true` fault injection for the itinerary breaker demo | Done |
-| Tests: 20 new (breaker state machine, rerank short-circuit/recovery, worker requeue/DLQ/pause, itinerary template fallback) — 82 total passing | Done |
+| **Tail-based sampling** in OTel Collector — keep ERROR traces, slow (>500ms), `circuit_open` / `served_fallback` spans; 10% probabilistic baseline | Done |
+| Shared collector config: `infra/otel/collector-config.yaml` (compose) + `infra/kubernetes/helm/retrieval-engine/files/collector-config.yaml` (Helm) | Done — keep in sync |
+| `JAEGER_ENDPOINT` env var for compose vs in-cluster Jaeger DNS | Done |
+| **`Corpus` CRD** (`retrieval.example.com/v1alpha1`) — declarative index provisioning | Done |
+| **Corpus operator** — watches `Corpus` resources, enqueues ingestion jobs, polls Redis status, patches `.status.phase` | Done |
+| Helm: CRD in `crds/corpus.yaml`, operator Deployment + RBAC (`corpusOperator.enabled`, default off) | Done |
+| `serve-corpus-operator` CLI, `operator` uv dependency group, `corpus-operator` Docker target | Done |
+| Example manifest: `infra/kubernetes/examples/corpus-sample.yaml` | Done |
+| Tests: operator reconcile unit tests | Done |
 
 **Design decisions:**
 
-1. **Hand-rolled breaker, not pybreaker.** The dev plan wanted the state machine learned. Thread-safe, registry-backed (`get_breaker(name)`), metrics emitted on every transition. Breakers deliberately do **not** own fallback logic — call sites do (that's the argument for app-level breakers over mesh outlier detection).
-2. **Formalized, didn't replace.** The Phase 3 rank-derived-score fallback (`1/(1+rank)`) is unchanged; the breaker only decides whether to *attempt* the HTTP call. Existing `rerank_fallback` span attribute kept alongside the new `circuit_open`/`served_fallback`.
-3. **Worker breaker ↔ retry ↔ DLQ:** open circuit = dependency down → requeue **without** counting the attempt + pause consumption (BRPOP not called). Closed-circuit failure = message's own fault → counts toward max attempts → DLQ. Good messages never dead-letter during an outage.
-4. **Direct Prometheus scraping, not OTel Collector metrics pipeline.** One less moving part; the Collector stays traces-only. Per-pod scraping in k8s (pod annotations + RBAC) because breaker state is a per-process gauge.
-5. **Metrics disabled in tests** (`METRICS_ENABLED=false` in conftest) — two FastAPI apps instrumented in one process would collide in the default Prometheus registry. In prod each service is its own process.
-
-**Live verification done:** dead reranker endpoint → 5 timeouts → `closed -> open` transition → subsequent request short-circuits (no network call), `/breakers` shows open, `/metrics` shows `circuit_breaker_state=2`, `served_fallback_total=6`. Compose Prometheus scrapes configured targets; Grafana auto-provisions the dashboard (checked via API).
+1. **Tail sampling at the Collector, not the SDK.** Services still export all spans (AlwaysOn). The Collector buffers complete traces and applies policies — errors, p95 territory (500ms), degradation attributes, then 10% of the rest. Production-realistic without losing the Phase 6 degradation demo traces.
+2. **Corpus operator reuses the ingestion queue.** No new provisioning path — the operator is a thin controller that calls `enqueue_job` and polls existing Redis job status. Worker + breakers + DLQ behavior unchanged.
+3. **Operator disabled by default.** Stretch goal — enable with `corpusOperator.enabled=true` in Helm values after `make docker-build` includes `retrieval-corpus-operator:latest`.
+4. **ClusterRole for Corpus status patches.** Operator lists/patches `corpora` cluster-wide; single-replica Deployment with poll loop (no kopf dependency).
 
 ---
 
-## ⚠️ Environment gap — corpus missing
+## Tail sampling policies
 
-The Postgres volume in this environment is **fresh** (no `listings` table). The
-Phase 5 corpus (~150k listings, embedded, FTS-indexed) is gone and `data/archive/`
-is empty on this machine. This blocks the two data-dependent prove-its:
+| Policy | Type | Keeps |
+|--------|------|-------|
+| `errors` | `status_code` | Traces with ERROR status |
+| `slow-traces` | `latency` | Traces ≥ 500ms end-to-end |
+| `degradation-fallback` | `boolean_attribute` | `served_fallback=true` |
+| `circuit-open` | `boolean_attribute` | `circuit_open=true` |
+| `baseline` | `probabilistic` | 10% of remaining traces |
 
-1. **`uv run eval --degradation --skip-beir`** — the measured NDCG cost of the
-   reranker fallback (the "phase 6 number" for the resume).
-2. **The live kill-the-reranker demo** with real search traffic through Grafana/Jaeger.
+`decision_wait: 10s` — traces are held until complete or timeout before a sampling decision.
 
-To close them: restore the Yelp JSONL files to `data/archive/`, then
+---
+
+## Corpus operator usage
 
 ```bash
-docker compose -f infra/docker/compose.yml up -d postgres redis
-uv run ingest && uv run embed && uv run index-fts        # or: uv run enqueue-job pipeline
-uv run serve-reranker &
-uv run eval --degradation --skip-beir --sample-size 500
+# Local operator (needs kubeconfig + Redis + worker running)
+uv sync --group operator
+uv run serve-worker &
+uv run serve-corpus-operator
+
+# Kubernetes (after helm upgrade with corpusOperator.enabled=true)
+kubectl apply -f infra/kubernetes/examples/corpus-sample.yaml
+kubectl get corpora
+# NAME              PHASE      JOB        LISTINGS
+# yelp-dev-sample   Indexing   <uuid>     ...
 ```
 
-Everything else (breaker behavior, metrics, dashboards, fallback code paths) is
-verified without the corpus.
+Corpus spec fields: `limit` (required), `pipeline` (`ingest` | `embed` | `index-fts` | `pipeline`), `reset`, `dataDir`.
 
 ---
 
 ## Runtime cheat sheet
 
 ```bash
-make obs-up          # jaeger + otel-collector + prometheus + grafana
-# Grafana http://localhost:3000 (anonymous admin), Prometheus http://localhost:9090
-uv run serve-reranker; uv run serve; uv run serve-itinerary; uv run serve-worker
-curl http://localhost:8000/breakers
-docker compose -f infra/docker/compose.yml stop reranker    # trip the breaker
-make k8s-deploy      # now also installs KEDA operator, deploys prometheus/grafana/scaledobjects
-```
+make obs-up          # collector now uses tail_sampling
+# Verify config:
+docker run --rm -e JAEGER_ENDPOINT=jaeger:4317 \
+  -v "%cd%/infra/otel/collector-config.yaml:/cfg.yaml:ro" \
+  otel/opentelemetry-collector-contrib:0.96.0 validate --config=/cfg.yaml
 
-New env knobs: `BREAKER_FAILURE_THRESHOLD` (5), `BREAKER_RESET_TIMEOUT_SEC` (30),
-`METRICS_ENABLED`, `WORKER_METRICS_PORT` (9100), `INGESTION_MAX_ATTEMPTS` (3),
-`LLM_FAULT_INJECT`.
+helm lint infra/kubernetes/helm/retrieval-engine
+helm template retrieval infra/kubernetes/helm/retrieval-engine \
+  --set corpusOperator.enabled=true
+```
 
 ---
 
-## Phase 7 tasks (from dev plan — optional stretch)
+## Carried forward from Phase 6
 
-1. **Tail-based sampling** in the OTel Collector: keep slow/error traces, drop the
-   boring ones (`tail_sampling` processor; the Collector config is at
-   `infra/otel/collector-config.yaml`, currently AlwaysOn).
-2. **Kubernetes operator / CRD:** a `Corpus` custom resource that provisions an
-   index on creation. Don't gate the project on it.
+The **corpus environment gap** still blocks `uv run eval --degradation` and live search demos. Restore Yelp JSONL to `data/archive/`, then ingest/embed/index as documented in [phase-6.md](phase-6.md).
+
+---
 
 ## Watch-outs
 
-1. **Dashboard JSON is duplicated**: `infra/grafana/dashboards/retrieval-engine.json`
-   (compose) and `infra/kubernetes/helm/retrieval-engine/files/retrieval-engine-dashboard.json`
-   (Helm). Keep in sync when editing panels.
-2. **KEDA reranker latency scaling** is off by default; enabling it requires
-   `services.reranker.hpa.enabled=false` (KEDA manages its own HPA).
-3. **k8s job label mapping:** Prometheus relabels `job` to the pod's
-   `app.kubernetes.io/component` (query/reranker/itinerary/worker); the KEDA
-   reranker trigger queries `job="reranker"` accordingly. In compose the jobs are
-   `query-service`/`reranker-service`/etc.
-4. **`--force-breaker-open` semantics:** `breaker.force_open()` pins the circuit
-   until `reset()`; `record_success()` will not close it (used by `eval --degradation`).
-5. **Half-open admits exactly one probe** — concurrent requests during the probe are
-   rejected and served fallback. Intentional (avoids thundering herd on recovery).
+1. **Collector config is duplicated** (compose `infra/otel/` vs Helm `files/collector-config.yaml`) — same pattern as Grafana dashboard JSON.
+2. **Corpus operator needs worker + Redis** — it only enqueues jobs; the worker Deployment must be running to execute them.
+3. **CRD install** — Helm installs CRDs from `crds/` on first install; upgrading CRD schemas may require manual `kubectl apply -f crds/corpus.yaml`.

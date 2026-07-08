@@ -21,6 +21,39 @@ src/retrieval_engine/  # Shared Python package (query + ingestion for now)
 tests/
 ```
 
+## Phase 7 — Stretch (tail-based sampling, Corpus operator)
+
+Production-style trace sampling and an optional Kubernetes operator for declarative index provisioning.
+
+### Tail-based sampling
+
+The OTel Collector applies **tail sampling** before exporting to Jaeger — SDKs still send all spans; the Collector keeps what matters:
+
+| Policy | Keeps |
+|--------|-------|
+| Errors | Traces with ERROR status |
+| Slow | End-to-end latency ≥ 500ms |
+| Degradation | `served_fallback=true` or `circuit_open=true` (Phase 6 spans) |
+| Baseline | 10% probabilistic sample of everything else |
+
+Config: `infra/otel/collector-config.yaml` (compose) — keep in sync with Helm `files/collector-config.yaml`.
+
+```bash
+make obs-up    # Jaeger + tail-sampling collector + Prometheus + Grafana
+```
+
+### Corpus operator (optional)
+
+A `Corpus` CRD provisions a search index by enqueueing the existing ingestion pipeline:
+
+```bash
+kubectl apply -f infra/kubernetes/examples/corpus-sample.yaml
+kubectl get corpora    # PHASE: Pending → Indexing → Ready
+```
+
+Enable in Helm: `corpusOperator.enabled=true` (requires `retrieval-corpus-operator` image from `make docker-build`).
+Local dev: `uv sync --group operator && uv run serve-corpus-operator` (with worker + Redis running).
+
 ## Phase 6 — Resilience + full observability
 
 Circuit breakers with measurable graceful degradation, Prometheus + Grafana metrics,
@@ -393,4 +426,4 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** start with [docs/handoff/phase-7.md](docs/handoff/phase-7.md).
+**Next agent:** Phase 7 (stretch) is complete — see [docs/handoff/phase-7.md](docs/handoff/phase-7.md).

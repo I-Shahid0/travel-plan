@@ -76,6 +76,7 @@ docker-build:
 	docker build -f $(DOCKERFILE) --target reranker -t retrieval-reranker:latest .
 	docker build -f $(DOCKERFILE) --target itinerary -t retrieval-itinerary:latest .
 	docker build -f $(DOCKERFILE) --target worker -t retrieval-worker:latest .
+	docker build -f $(DOCKERFILE) --target corpus-operator -t retrieval-corpus-operator:latest .
 
 k8s-deploy:
 	powershell -ExecutionPolicy Bypass -File infra/kubernetes/scripts/deploy-minikube.ps1

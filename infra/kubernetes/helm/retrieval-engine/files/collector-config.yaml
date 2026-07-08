@@ -1,4 +1,4 @@
-# Keep in sync with infra/kubernetes/helm/retrieval-engine/files/collector-config.yaml
+# Keep in sync with infra/otel/collector-config.yaml (Helm .Files cannot read outside the chart).
 receivers:
   otlp:
     protocols:
@@ -8,8 +8,6 @@ receivers:
         endpoint: 0.0.0.0:4318
 
 processors:
-  # Tail-based sampling: keep errors, slow traces, and degradation spans; probabilistic
-  # baseline for the rest. SDKs export all spans (AlwaysOn); sampling happens here.
   tail_sampling:
     decision_wait: 10s
     num_traces: 10000

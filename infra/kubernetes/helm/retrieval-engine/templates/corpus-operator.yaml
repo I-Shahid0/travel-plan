@@ -1,0 +1,75 @@
+{{- if .Values.corpusOperator.enabled }}
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: corpus-operator
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: corpus-operator
+rules:
+  - apiGroups: ["retrieval.example.com"]
+    resources: ["corpora"]
+    verbs: ["get", "list", "watch"]
+  - apiGroups: ["retrieval.example.com"]
+    resources: ["corpora/status"]
+    verbs: ["get", "patch", "update"]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: corpus-operator
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+subjects:
+  - kind: ServiceAccount
+    name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+    namespace: {{ .Release.Namespace }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: corpus-operator
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: corpus-operator
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: corpus-operator
+    spec:
+      serviceAccountName: {{ include "retrieval-engine.fullname" . }}-corpus-operator
+      containers:
+        - name: corpus-operator
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-corpus-operator") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          {{- include "retrieval-engine.envFrom" . | nindent 10 }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: corpus-operator
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: {{ include "retrieval-engine.otelEndpoint" . }}
+            - name: CORPUS_OPERATOR_POLL_SEC
+              value: {{ .Values.corpusOperator.pollIntervalSec | quote }}
+          resources:
+            {{- toYaml .Values.corpusOperator.resources | nindent 12 }}
+{{- end }}
