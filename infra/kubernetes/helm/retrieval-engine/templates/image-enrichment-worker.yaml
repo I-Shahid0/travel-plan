@@ -1,0 +1,81 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-image-enrichment
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: image-enrichment
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.services.imageEnrichment.port }}
+      targetPort: http
+      name: http
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: image-enrichment
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-image-enrichment
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: image-enrichment
+spec:
+  replicas: {{ .Values.services.imageEnrichment.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: image-enrichment
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: image-enrichment
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.services.imageEnrichment.port | quote }}
+    spec:
+      {{- if .Values.postgres.enabled }}
+      initContainers:
+        - name: wait-postgres
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z {{ include "retrieval-engine.postgresHost" . }} {{ .Values.postgres.port }}; do echo waiting for postgres; sleep 2; done
+        - name: wait-redis
+          image: busybox:1.36
+          command:
+            - sh
+            - -c
+            - until nc -z {{ include "retrieval-engine.redisHost" . }} {{ .Values.redis.port }}; do echo waiting for redis; sleep 2; done
+      {{- end }}
+      containers:
+        - name: image-enrichment
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-image-enrichment") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.imageEnrichment.port }}
+              name: http
+          {{- include "retrieval-engine.envFrom" . }}
+          env:
+            - name: OTEL_SERVICE_NAME
+              value: image-enrichment-service
+            - name: IMAGE_ENRICHMENT_PORT
+              value: {{ .Values.services.imageEnrichment.port | quote }}
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 10
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            initialDelaySeconds: 20
+            periodSeconds: 20
+          resources:
+            {{- toYaml .Values.services.imageEnrichment.resources | nindent 12 }}

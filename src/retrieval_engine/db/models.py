@@ -26,6 +26,22 @@ class EvalSplit(StrEnum):
     TEST = "test"
 
 
+class ImageStatus(StrEnum):
+    PENDING = "pending"
+    PROCESSING = "processing"
+    ENRICHED = "enriched"
+    NOT_FOUND = "not_found"
+    FAILED = "failed"
+    BLOCKED = "blocked"
+
+
+class ImageSource(StrEnum):
+    GOOGLE_MAPS = "google_maps"
+    GOOGLE_SEARCH = "google_search"
+    MANUAL = "manual"
+    UNKNOWN = "unknown"
+
+
 class Listing(Base):
     __tablename__ = "listings"
 
@@ -46,13 +62,42 @@ class Listing(Base):
     review_text: Mapped[str | None] = mapped_column(Text)
     # Reserved for Phase 1 dense retrieval
     embedding: Mapped[list[float] | None] = mapped_column(Vector(384))
+    primary_image_url: Mapped[str | None] = mapped_column(Text)
+    image_source: Mapped[str | None] = mapped_column(String(32))
+    image_enriched_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    image_status: Mapped[str] = mapped_column(
+        String(16), default=ImageStatus.PENDING.value, server_default=ImageStatus.PENDING.value
+    )
+    image_last_error: Mapped[str | None] = mapped_column(Text)
+    image_confidence: Mapped[float | None] = mapped_column(Float)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
     __table_args__ = (
         Index("ix_listings_categories", "categories", postgresql_using="gin"),
         Index("ix_listings_price_level", "price_level"),
         Index("ix_listings_geo", "latitude", "longitude"),
+        Index("ix_listings_image_status", "image_status"),
     )
+
+
+class ListingImageEnrichment(Base):
+    """Provenance history for image enrichment attempts."""
+
+    __tablename__ = "listing_image_enrichments"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    listing_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
+    status: Mapped[str] = mapped_column(String(16), nullable=False)
+    source: Mapped[str | None] = mapped_column(String(32))
+    matched_name: Mapped[str | None] = mapped_column(String(512))
+    matched_url: Mapped[str | None] = mapped_column(Text)
+    image_url: Mapped[str | None] = mapped_column(Text)
+    confidence: Mapped[float | None] = mapped_column(Float)
+    attempt: Mapped[int] = mapped_column(Integer, default=1)
+    latency_ms: Mapped[int | None] = mapped_column(Integer)
+    error_code: Mapped[str | None] = mapped_column(String(64))
+    error_detail: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 
 class Interaction(Base):

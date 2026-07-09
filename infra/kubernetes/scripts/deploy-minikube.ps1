@@ -199,7 +199,7 @@ Invoke-External {
 
 Write-Host "==> Building container images"
 $imageTag = "dev-$(Get-Date -Format 'yyyyMMddHHmmss')"
-foreach ($target in @("query", "reranker", "itinerary", "worker")) {
+foreach ($target in @("query", "reranker", "itinerary", "worker", "image-enrichment")) {
     $image = "retrieval-$target`:$imageTag"
     Invoke-External {
         docker build -f (Join-Path $Root "infra\docker\Dockerfile") --target $target -t $image $Root

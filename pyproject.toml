@@ -70,6 +70,9 @@ serve-itinerary = "retrieval_engine.itinerary_service.main:serve"
 serve-worker = "retrieval_engine.ingestion.worker:main"
 enqueue-job = "retrieval_engine.ingestion.enqueue:main"
 serve-corpus-operator = "retrieval_engine.operator.main:serve"
+serve-image-enrichment-worker = "retrieval_engine.image_enrichment.main:serve"
+serve-image-enrichment-worker-cli = "retrieval_engine.image_enrichment.worker:main"
+enqueue-image-job = "retrieval_engine.image_enrichment.enqueue:main"
 
 [build-system]
 requires = ["hatchling"]

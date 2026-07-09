@@ -35,12 +35,17 @@ mkdir -p "$(dirname "$OUT_FILE")"
 {
   echo "appEnv:"
   for key in "${!VARS[@]}"; do
-    [[ "$key" == "GOOGLE_API_KEY" ]] && continue
+    [[ "$key" == "GOOGLE_API_KEY" || "$key" == "FIRECRAWL_API_KEY" ]] && continue
     printf '  %s: "%s"\n' "$key" "${VARS[$key]//\"/\\\"}"
   done
-  if [[ -n "${VARS[GOOGLE_API_KEY]:-}" ]]; then
+  if [[ -n "${VARS[GOOGLE_API_KEY]:-}" || -n "${VARS[FIRECRAWL_API_KEY]:-}" ]]; then
     echo "appSecrets:"
-    printf '  GOOGLE_API_KEY: "%s"\n' "${VARS[GOOGLE_API_KEY]//\"/\\\"}"
+    if [[ -n "${VARS[GOOGLE_API_KEY]:-}" ]]; then
+      printf '  GOOGLE_API_KEY: "%s"\n' "${VARS[GOOGLE_API_KEY]//\"/\\\"}"
+    fi
+    if [[ -n "${VARS[FIRECRAWL_API_KEY]:-}" ]]; then
+      printf '  FIRECRAWL_API_KEY: "%s"\n' "${VARS[FIRECRAWL_API_KEY]//\"/\\\"}"
+    fi
   fi
 } > "$OUT_FILE"
 

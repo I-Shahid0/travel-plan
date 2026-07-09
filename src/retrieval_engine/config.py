@@ -60,6 +60,24 @@ class Settings(BaseSettings):
     breaker_reset_timeout_sec: float = 30.0
     metrics_enabled: bool = True
     worker_metrics_port: int = 9100
+    image_enrichment_queue_key: str = "image_enrichment:jobs"
+    image_enrichment_dlq_key: str = "image_enrichment:jobs:dead"
+    image_enrichment_job_status_prefix: str = "image_enrichment:job:"
+    image_enrichment_job_status_ttl_sec: int = 86_400
+    image_enrichment_max_attempts: int = 3
+    image_enrichment_worker_poll_timeout_sec: float = 5.0
+    image_enrichment_request_timeout_sec: float = 30.0
+    image_enrichment_batch_size: int = 100
+    image_enrichment_provider: str = "firecrawl"
+    image_enrichment_firecrawl_enabled: bool = True
+    image_enrichment_firecrawl_limit: int = 5
+    image_enrichment_prefer_official_site: bool = True
+    image_enrichment_google_fallback_enabled: bool = False
+    image_enrichment_concurrency: int = 1
+    image_enrichment_min_confidence: float = 0.6
+    image_enrichment_write_enabled: bool = True
+    image_enrichment_port: int = 8003
+    firecrawl_api_key: str = ""
 
 
 settings = Settings()

@@ -77,7 +77,7 @@ helm upgrade --install keda kedacore/keda --namespace keda --create-namespace --
 
 echo "==> Building container images"
 IMAGE_TAG="dev-$(date +%Y%m%d%H%M%S)"
-for target in query reranker itinerary worker; do
+for target in query reranker itinerary worker image-enrichment; do
   image="retrieval-$target:$IMAGE_TAG"
   docker build -f "$ROOT/infra/docker/Dockerfile" --target "$target" -t "$image" "$ROOT"
   echo "    loading $image into minikube"

@@ -28,6 +28,9 @@ RUN uv sync --frozen --no-dev --group embed
 FROM builder-base AS builder-operator
 RUN uv sync --frozen --no-dev --group embed --group operator
 
+FROM builder-base AS builder-image-enrichment
+RUN uv sync --frozen --no-dev
+
 FROM python:3.12-slim AS runtime-base
 
 WORKDIR /app
@@ -101,3 +104,17 @@ COPY src ./src
 
 ENV OTEL_SERVICE_NAME=corpus-operator
 CMD ["serve-corpus-operator"]
+
+
+FROM runtime-base AS image-enrichment
+
+COPY --from=builder-image-enrichment /app/.venv /app/.venv
+COPY pyproject.toml uv.lock README.md ./
+COPY src ./src
+
+ENV OTEL_SERVICE_NAME=image-enrichment-service \
+    IMAGE_ENRICHMENT_PORT=8003
+EXPOSE 8003
+HEALTHCHECK --interval=15s --timeout=5s --start-period=15s --retries=3 \
+    CMD curl -fsS http://localhost:8003/health || exit 1
+CMD ["serve-image-enrichment-worker"]

@@ -15,3 +15,6 @@ scrape_configs:
   - job_name: ingestion-worker
     static_configs:
       - targets: ["worker:9100"]
+  - job_name: image-enrichment-service
+    static_configs:
+      - targets: ["image-enrichment:8003"]

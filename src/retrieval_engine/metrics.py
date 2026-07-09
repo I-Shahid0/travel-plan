@@ -52,6 +52,20 @@ INGESTION_JOBS = Counter(
     "Ingestion queue messages by outcome",
     ["outcome"],  # completed | requeued | dead_lettered
 )
+IMAGE_ENRICHMENT_QUEUE_DEPTH = Gauge(
+    "image_enrichment_queue_depth",
+    "Length of the Redis image enrichment job queue",
+)
+IMAGE_ENRICHMENT_JOBS = Counter(
+    "image_enrichment_jobs_total",
+    "Image enrichment queue messages by outcome",
+    ["outcome"],
+)
+IMAGE_ENRICHMENT_LATENCY = Histogram(
+    "image_enrichment_latency_seconds",
+    "End-to-end latency of a single image enrichment job",
+    buckets=(0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0, 30.0, 60.0),
+)
 
 _STATE_VALUES = {"closed": 0, "half_open": 1, "open": 2}
 
@@ -74,6 +88,23 @@ def set_queue_depth(depth: int) -> None:
 
 def record_job(outcome: str) -> None:
     INGESTION_JOBS.labels(outcome=outcome).inc()
+
+
+def set_image_enrichment_queue_depth(depth: int) -> None:
+    IMAGE_ENRICHMENT_QUEUE_DEPTH.set(depth)
+
+
+def record_image_enrichment_job(outcome: str) -> None:
+    IMAGE_ENRICHMENT_JOBS.labels(outcome=outcome).inc()
+
+
+@contextmanager
+def time_image_enrichment() -> Iterator[None]:
+    start = time.perf_counter()
+    try:
+        yield
+    finally:
+        IMAGE_ENRICHMENT_LATENCY.observe(time.perf_counter() - start)
 
 
 @contextmanager

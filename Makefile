@@ -3,7 +3,7 @@ DOCKERFILE := infra/docker/Dockerfile
 HELM_CHART := infra/kubernetes/helm/retrieval-engine
 MINIKUBE_PROFILE := retrieval
 
-.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls
+.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls
 
 install:
 	uv sync --all-groups
@@ -60,6 +60,9 @@ serve-itinerary:
 serve-worker:
 	uv run serve-worker
 
+serve-image-enrichment-worker:
+	uv run serve-image-enrichment-worker
+
 test:
 	uv run pytest -q
 
@@ -76,6 +79,7 @@ docker-build:
 	docker build -f $(DOCKERFILE) --target reranker -t retrieval-reranker:latest .
 	docker build -f $(DOCKERFILE) --target itinerary -t retrieval-itinerary:latest .
 	docker build -f $(DOCKERFILE) --target worker -t retrieval-worker:latest .
+	docker build -f $(DOCKERFILE) --target image-enrichment -t retrieval-image-enrichment:latest .
 	docker build -f $(DOCKERFILE) --target corpus-operator -t retrieval-corpus-operator:latest .
 
 k8s-deploy:

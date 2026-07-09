@@ -1,3 +1,5 @@
+# App services load repo-root .env via per-service env_file (optional if missing).
+# environment: below overrides .env values that must use compose DNS (postgres, redis, etc.).
 services:
   postgres:
     image: pgvector/pgvector:pg16
@@ -79,6 +81,9 @@ services:
       context: ../..
       dockerfile: infra/docker/Dockerfile.reranker
     container_name: retrieval-reranker
+    env_file:
+      - path: ../../.env
+        required: false
     ports:
       - "8001:8001"
     environment:
@@ -103,9 +108,13 @@ services:
       dockerfile: infra/docker/Dockerfile
       target: query
     container_name: retrieval-query
+    env_file:
+      - path: ../../.env
+        required: false
     ports:
       - "8000:8000"
     environment:
+      # Overrides .env localhost URLs for the compose network.
       DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
       DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
       REDIS_URL: redis://redis:6379/0
@@ -131,11 +140,13 @@ services:
       dockerfile: infra/docker/Dockerfile
       target: itinerary
     container_name: retrieval-itinerary
+    env_file:
+      - path: ../../.env
+        required: false
     ports:
       - "8002:8002"
     environment:
       QUERY_SERVICE_URL: http://query:8000
-      LLM_PROVIDER: mock
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: itinerary-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
@@ -149,6 +160,9 @@ services:
       dockerfile: infra/docker/Dockerfile
       target: worker
     container_name: retrieval-worker
+    env_file:
+      - path: ../../.env
+        required: false
     environment:
       DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
       DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
@@ -160,6 +174,32 @@ services:
       WORKER_METRICS_PORT: "9100"
     expose:
       - "9100"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      otel-collector:
+        condition: service_started
+
+  image-enrichment:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: image-enrichment
+    container_name: retrieval-image-enrichment
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8003:8003"
+    environment:
+      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
+      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
+      REDIS_URL: redis://redis:6379/0
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: image-enrichment-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     depends_on:
       postgres:
         condition: service_healthy
