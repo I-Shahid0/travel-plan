@@ -144,7 +144,9 @@ def get_model():
         ):
             raise RuntimeError(
                 f"CUDA was requested but active ONNX providers are {active}. "
-                "Install cuDNN: uv pip install nvidia-cudnn-cu12, then re-run embed."
+                "Install GPU deps: uv sync --group gpu, then reinstall the CUDA 12 wheel: "
+                "uv pip install --reinstall onnxruntime-gpu "
+                "--index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/"
             )
         _log("Model ready — active providers: %s", active)
     return _model

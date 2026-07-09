@@ -39,7 +39,7 @@ def setup_telemetry(*, service_name: str | None = None) -> None:
     trace.set_tracer_provider(provider)
     _tracer_provider = provider
     HTTPXClientInstrumentor().instrument()
-    logger.info("OpenTelemetry enabled for %s → %s", name, settings.otel_exporter_otlp_endpoint)
+    logger.info("OpenTelemetry enabled for %s -> %s", name, settings.otel_exporter_otlp_endpoint)
 
 
 def instrument_fastapi(app: FastAPI) -> None:

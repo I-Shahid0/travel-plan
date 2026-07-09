@@ -7,7 +7,7 @@ MINIKUBE_PROFILE := retrieval
 
 install:
 	uv sync --all-groups
-	-uv pip uninstall onnxruntime
+	uv pip install --reinstall onnxruntime-gpu --index-url https://aiinfra.pkgs.visualstudio.com/PublicPackages/_packaging/onnxruntime-cuda-12/pypi/simple/
 
 dev: install
 	cp -n .env.example .env 2>/dev/null || true

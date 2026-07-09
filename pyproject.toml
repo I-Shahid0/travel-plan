@@ -26,14 +26,12 @@ dependencies = [
 ]
 
 [dependency-groups]
-# Query-time embedding (fastembed + CPU ONNX)
+# Query-time embedding (fastembed; ONNX runtime from gpu group locally, cpu in containers)
 embed = [
     "fastembed>=0.5.0",
-    "onnxruntime>=1.19.0",
 ]
 # Cross-encoder reranker service (ONNX + HF tokenizer)
 reranker = [
-    "onnxruntime>=1.19.0",
     "transformers>=4.40.0",
     "huggingface-hub>=0.23.0",
 ]
@@ -103,6 +101,7 @@ explicit = true
 [tool.uv.sources]
 onnxruntime-gpu = { index = "onnxruntime-cuda-12" }
 
-# Local GPU dev: fastembed pulls CPU onnxruntime which can overwrite onnxruntime-gpu.
-# After `uv sync --group gpu --group embed`, run: uv pip uninstall onnxruntime
-# Container images sync only the groups they need and are unaffected.
+# fastembed embed group pulls cpu onnxruntime which shadows onnxruntime-gpu (fastembed #608).
+# Block cpu wheel; use --group gpu for local CUDA dev.
+[tool.uv]
+override-dependencies = ["onnxruntime ; python_version < '0'"]
