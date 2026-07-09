@@ -21,6 +21,9 @@ def listing_to_result(row: Listing) -> ListingResult:
         price_level=row.price_level,
         stars=row.stars,
         review_count=row.review_count,
+        primary_image_url=row.primary_image_url,
+        latitude=row.latitude,
+        longitude=row.longitude,
     )
 
 

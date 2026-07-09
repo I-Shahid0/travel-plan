@@ -105,6 +105,7 @@ explicit = true
 onnxruntime-gpu = { index = "onnxruntime-cuda-12" }
 
 # fastembed embed group pulls cpu onnxruntime which shadows onnxruntime-gpu (fastembed #608).
-# Block cpu wheel; use --group gpu for local CUDA dev.
+# Block the cpu wheel on Windows only (use --group gpu for local CUDA dev);
+# Linux containers are cpu-only and need the regular onnxruntime wheel.
 [tool.uv]
-override-dependencies = ["onnxruntime ; python_version < '0'"]
+override-dependencies = ["onnxruntime>=1.19.0 ; sys_platform != 'win32'"]

@@ -2,7 +2,7 @@
 
 Personalized listing search & ranking for travel/experiences, built on the Yelp Open Dataset.
 
-This repo is **backend-first**: it exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes).
+The backend exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes). As of **Phase 9** it also ships a user-facing frontend: **Meridian** (`apps/web`), a Next.js app with end-to-end type safety from the FastAPI OpenAPI schemas and Better Auth accounts.
 
 For the full phase-by-phase development notes, see `ABOUT_ME.md`.
 
@@ -20,7 +20,11 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
    - Day-by-day itinerary generation from top-ranked listings (LLM isolated behind a fallback)
 4. `ingestion/worker`
    - Async ingest/embed/index jobs via Redis queue
-5. Observability stack (when enabled)
+5. `web` — **Meridian** (Next.js, port `3001`)
+   - Search, personalization, and trip planning UI
+   - Better Auth accounts; typed clients generated from OpenAPI
+   - See [apps/web/README.md](apps/web/README.md)
+6. Observability stack (when enabled)
    - Jaeger UI (`16686`)
    - Grafana (`3000`)
    - Prometheus (`9090`)
@@ -30,6 +34,8 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
 ## What you can open in a browser
 
 Assuming services are running locally:
+
+- **Meridian (the product): `http://localhost:3001`**
 
 - Query API docs: `http://localhost:8000/docs`
 - Query health: `http://localhost:8000/health`
@@ -203,6 +209,23 @@ curl http://localhost:8000/health
 ```
 
 ---
+
+## Phase 9: Meridian frontend
+
+`apps/web` — Next.js App Router with Server Components, running on bun:
+
+```bash
+make web-install         # bun install
+make generate-api        # Pydantic → OpenAPI → generated TS (committed)
+make web-auth-migrate    # Better Auth tables in the shared Postgres
+make web-dev             # http://localhost:3001
+make web-test            # bun test (typed-fixture integration tests)
+```
+
+Sign up, search with filters and retrieval modes, link a Yelp traveler id on
+the profile page for personalized ranking, and plot LLM itineraries on
+`/plan` with a live latency/cost budget verdict. Design notes and the
+type-safety pipeline live in [apps/web/README.md](apps/web/README.md).
 
 ## Phase 8 (planned): image enrichment
 

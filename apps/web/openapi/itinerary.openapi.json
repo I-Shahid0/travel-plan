@@ -1,0 +1,336 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Itinerary Service",
+    "description": "LLM trip planning over top-ranked listings \u2014 Phase 4.6 (isolated service)",
+    "version": "0.2.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "summary": "Health",
+        "operationId": "health_health_get",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/itinerary": {
+      "post": {
+        "summary": "Itinerary",
+        "operationId": "itinerary_itinerary_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ItineraryRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ItineraryResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "BudgetReport": {
+        "properties": {
+          "latency_ms": {
+            "type": "number",
+            "title": "Latency Ms"
+          },
+          "budget_ms": {
+            "type": "number",
+            "title": "Budget Ms"
+          },
+          "cost_usd_est": {
+            "type": "number",
+            "title": "Cost Usd Est"
+          },
+          "budget_usd": {
+            "type": "number",
+            "title": "Budget Usd"
+          },
+          "input_tokens": {
+            "type": "integer",
+            "title": "Input Tokens"
+          },
+          "output_tokens": {
+            "type": "integer",
+            "title": "Output Tokens"
+          },
+          "within_budget": {
+            "type": "boolean",
+            "title": "Within Budget"
+          }
+        },
+        "type": "object",
+        "required": [
+          "latency_ms",
+          "budget_ms",
+          "cost_usd_est",
+          "budget_usd",
+          "input_tokens",
+          "output_tokens",
+          "within_budget"
+        ],
+        "title": "BudgetReport"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "HealthResponse": {
+        "properties": {
+          "status": {
+            "type": "string",
+            "title": "Status"
+          },
+          "llm_provider": {
+            "type": "string",
+            "title": "Llm Provider"
+          },
+          "llm_model": {
+            "type": "string",
+            "title": "Llm Model"
+          },
+          "budget_ms": {
+            "type": "number",
+            "title": "Budget Ms"
+          },
+          "budget_usd": {
+            "type": "number",
+            "title": "Budget Usd"
+          }
+        },
+        "type": "object",
+        "required": [
+          "status",
+          "llm_provider",
+          "llm_model",
+          "budget_ms",
+          "budget_usd"
+        ],
+        "title": "HealthResponse"
+      },
+      "ItineraryRequest": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "minLength": 1,
+            "title": "Query",
+            "description": "Traveler intent, e.g. 'weekend in Portland'"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id",
+            "description": "Personalizes the underlying search"
+          },
+          "days": {
+            "type": "integer",
+            "maximum": 14.0,
+            "minimum": 1.0,
+            "title": "Days",
+            "default": 1
+          },
+          "top_k": {
+            "anyOf": [
+              {
+                "type": "integer",
+                "maximum": 20.0,
+                "minimum": 1.0
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Top K",
+            "description": "Listings to plan around"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query"
+        ],
+        "title": "ItineraryRequest"
+      },
+      "ItineraryResponse": {
+        "properties": {
+          "query": {
+            "type": "string",
+            "title": "Query"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          },
+          "itinerary": {
+            "type": "string",
+            "title": "Itinerary"
+          },
+          "listings_used": {
+            "items": {
+              "$ref": "#/components/schemas/ListingRef"
+            },
+            "type": "array",
+            "title": "Listings Used"
+          },
+          "llm_provider": {
+            "type": "string",
+            "title": "Llm Provider"
+          },
+          "llm_model": {
+            "type": "string",
+            "title": "Llm Model"
+          },
+          "budget": {
+            "$ref": "#/components/schemas/BudgetReport"
+          }
+        },
+        "type": "object",
+        "required": [
+          "query",
+          "user_id",
+          "itinerary",
+          "listings_used",
+          "llm_provider",
+          "llm_model",
+          "budget"
+        ],
+        "title": "ItineraryResponse"
+      },
+      "ListingRef": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories",
+            "default": []
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "ListingRef"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          },
+          "input": {
+            "title": "Input"
+          },
+          "ctx": {
+            "type": "object",
+            "title": "Context"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

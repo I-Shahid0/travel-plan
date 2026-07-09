@@ -147,12 +147,40 @@ services:
       - "8002:8002"
     environment:
       QUERY_SERVICE_URL: http://query:8000
+      # Real LLM planning when GOOGLE_API_KEY is present in .env; the
+      # circuit breaker degrades to the template planner on failure.
+      LLM_PROVIDER: google
+      LLM_MODEL: gemini-2.5-flash-lite
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: itinerary-service
       OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
     depends_on:
       - query
       - otel-collector
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    container_name: retrieval-web
+    env_file:
+      # apps/web/.env carries BETTER_AUTH_SECRET; URLs below override for compose DNS
+      - path: ../../apps/web/.env
+        required: false
+    ports:
+      - "3001:3001"
+    environment:
+      BETTER_AUTH_URL: http://localhost:3001
+      DATABASE_URL: postgresql://retrieval:retrieval@postgres:5432/retrieval
+      QUERY_API_URL: http://query:8000
+      ITINERARY_API_URL: http://itinerary:8002
+    depends_on:
+      postgres:
+        condition: service_healthy
+      query:
+        condition: service_started
+      itinerary:
+        condition: service_started
 
   worker:
     build:

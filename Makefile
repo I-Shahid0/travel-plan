@@ -3,7 +3,7 @@ DOCKERFILE := infra/docker/Dockerfile
 HELM_CHART := infra/kubernetes/helm/retrieval-engine
 MINIKUBE_PROFILE := retrieval
 
-.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls
+.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls generate-api web-install web-dev web-build web-test web-auth-migrate
 
 install:
 	uv sync --all-groups
@@ -94,3 +94,27 @@ k8s-urls:
 
 k8s-loadtest:
 	k6 run tests/load/search.js
+
+# ---- Phase 9: Next.js frontend (apps/web, bun) ----
+
+# Pydantic -> OpenAPI JSON -> generated TS. Run after any query/itinerary
+# schema or route-signature change; CI drift check:
+#   make generate-api && git diff --exit-code apps/web/openapi apps/web/src/lib/api
+generate-api:
+	uv run python scripts/export_openapi.py
+	cd apps/web && bun run generate:api
+
+web-install:
+	cd apps/web && bun install
+
+web-dev:
+	cd apps/web && bun run dev
+
+web-build:
+	cd apps/web && bun run build
+
+web-test:
+	cd apps/web && bun test
+
+web-auth-migrate:
+	cd apps/web && bun run auth:migrate

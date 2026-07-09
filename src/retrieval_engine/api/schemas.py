@@ -11,6 +11,9 @@ class ListingResult(BaseModel):
     price_level: int | None
     stars: float | None
     review_count: int
+    primary_image_url: str | None = None
+    latitude: float | None = None
+    longitude: float | None = None
 
 
 class SearchResponse(BaseModel):
