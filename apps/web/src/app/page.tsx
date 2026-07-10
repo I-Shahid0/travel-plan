@@ -63,7 +63,7 @@ export default async function LandingPage() {
         {/* soft horizon */}
         <div
           aria-hidden="true"
-          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-gradient-to-t from-ink-950 to-transparent"
+          className="pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-ink-950 to-transparent"
         />
       </section>
 
@@ -81,7 +81,7 @@ export default async function LandingPage() {
 
         <Reveal className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <article className="panel-etched hairline-aurora p-7">
-            <p className="voice-etch mb-5 !text-aurora-teal">01 · Retrieval</p>
+            <p className="voice-etch mb-5 text-aurora-teal!">01 · Retrieval</p>
             <h3 className="voice-display text-xl text-starlight">Hybrid search</h3>
             <p className="mt-3 text-sm leading-relaxed text-dim">
               Dense embeddings and sparse keywords fused with reciprocal-rank fusion, then re-ranked
@@ -93,7 +93,7 @@ export default async function LandingPage() {
           </article>
 
           <article className="panel-etched hairline-aurora p-7">
-            <p className="voice-etch mb-5 !text-aurora-violet">02 · Personalization</p>
+            <p className="voice-etch mb-5 text-aurora-violet!">02 · Personalization</p>
             <h3 className="voice-display text-xl text-starlight">Your own sky</h3>
             <p className="mt-3 text-sm leading-relaxed text-dim">
               Link a traveler profile and the ranking blends your taste vector into every search —
@@ -105,7 +105,7 @@ export default async function LandingPage() {
           </article>
 
           <article className="panel-etched hairline-aurora p-7">
-            <p className="voice-etch mb-5 !text-aurora-rose">03 · Itineraries</p>
+            <p className="voice-etch mb-5 text-aurora-rose!">03 · Itineraries</p>
             <h3 className="voice-display text-xl text-starlight">Plotted journeys</h3>
             <p className="mt-3 text-sm leading-relaxed text-dim">
               An LLM planner arranges the top-ranked places into a day-by-day route — behind a
@@ -117,7 +117,7 @@ export default async function LandingPage() {
           </article>
 
           <article className="panel-etched hairline-aurora p-7">
-            <p className="voice-etch mb-5 !text-brass">04 · Memory</p>
+            <p className="voice-etch mb-5 text-brass!">04 · Memory</p>
             <h3 className="voice-display text-xl text-starlight">A feed that learns</h3>
             <p className="mt-3 text-sm leading-relaxed text-dim">
               Every search, visit, and journey becomes a signal. The For-You sky rebuilds itself
@@ -153,7 +153,7 @@ export default async function LandingPage() {
                 <ConstellationArt
                   id={specimen.id}
                   categories={specimen.categories}
-                  className="aspect-[16/10] w-full"
+                  className="aspect-16/10 w-full"
                 />
                 <figcaption className="flex items-center justify-between px-4 py-3">
                   <span className="font-mono text-[0.625rem] tracking-[0.14em] text-dim uppercase">
