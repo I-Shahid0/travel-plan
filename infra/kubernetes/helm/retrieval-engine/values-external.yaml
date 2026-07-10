@@ -1,0 +1,15 @@
+# External Postgres (Neon) + Redis (Upstash). DATABASE_URL and REDIS_URL come
+# from repo root .env via infra/kubernetes/scripts/load-env.* --profile external.
+postgres:
+  enabled: false
+
+redis:
+  enabled: false
+
+# KEDA worker scaling uses externalRedis (parsed from REDIS_URL by load-env).
+keda:
+  enabled: true
+
+bootstrap:
+  sampleIngest:
+    enabled: false

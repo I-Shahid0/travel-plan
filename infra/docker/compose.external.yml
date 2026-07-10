@@ -1,0 +1,211 @@
+# External Postgres (Neon) + Redis (Upstash) — no bundled stateful services.
+# Set DATABASE_URL and REDIS_URL in the repo root .env, then:
+#   docker compose -f infra/docker/compose.external.yml up -d
+services:
+  jaeger:
+    image: jaegertracing/all-in-one:1.57
+    container_name: retrieval-jaeger
+    environment:
+      COLLECTOR_OTLP_ENABLED: "true"
+    ports:
+      - "16686:16686"
+
+  otel-collector:
+    image: otel/opentelemetry-collector-contrib:0.96.0
+    container_name: retrieval-otel-collector
+    command: ["--config=/etc/otelcol/config.yaml"]
+    environment:
+      JAEGER_ENDPOINT: jaeger:4317
+    volumes:
+      - ../otel/collector-config.yaml:/etc/otelcol/config.yaml:ro
+    ports:
+      - "4317:4317"
+      - "4318:4318"
+    depends_on:
+      - jaeger
+
+  prometheus:
+    image: prom/prometheus:v2.53.0
+    container_name: retrieval-prometheus
+    command: ["--config.file=/etc/prometheus/prometheus.yml"]
+    volumes:
+      - ../prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - "9090:9090"
+
+  grafana:
+    image: grafana/grafana:11.1.0
+    container_name: retrieval-grafana
+    environment:
+      GF_AUTH_ANONYMOUS_ENABLED: "true"
+      GF_AUTH_ANONYMOUS_ORG_ROLE: Admin
+      GF_SECURITY_ADMIN_PASSWORD: admin
+    volumes:
+      - ../grafana/provisioning:/etc/grafana/provisioning:ro
+      - ../grafana/dashboards:/var/lib/grafana/dashboards:ro
+    ports:
+      - "3000:3000"
+    depends_on:
+      - prometheus
+
+  reranker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile.reranker
+    container_name: retrieval-reranker
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8001:8001"
+    environment:
+      RERANKER_DEVICE: cpu
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: reranker-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    deploy:
+      resources:
+        limits:
+          cpus: "2"
+          memory: 4G
+        reservations:
+          cpus: "0.5"
+          memory: 1G
+    depends_on:
+      - otel-collector
+
+  query:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: query
+    container_name: retrieval-query
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8000:8000"
+    environment:
+      RERANKER_URL: http://reranker:8001
+      EMBEDDING_DEVICE: cpu
+      RERANKER_DEVICE: cpu
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: query-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      reranker:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+
+  itinerary:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: itinerary
+    container_name: retrieval-itinerary
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8002:8002"
+    environment:
+      QUERY_SERVICE_URL: http://query:8000
+      LLM_PROVIDER: google
+      LLM_MODEL: gemini-2.5-flash-lite
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: itinerary-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      - query
+      - otel-collector
+
+  web:
+    build:
+      context: ../../apps/web
+      dockerfile: Dockerfile
+    container_name: retrieval-web
+    env_file:
+      - path: ../../.env
+        required: false
+      - path: ../../apps/web/.env
+        required: false
+    ports:
+      - "3001:3001"
+    environment:
+      BETTER_AUTH_URL: http://localhost:3001
+      QUERY_API_URL: http://query:8000
+      ITINERARY_API_URL: http://itinerary:8002
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: meridian-web
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318
+    depends_on:
+      query:
+        condition: service_started
+      itinerary:
+        condition: service_started
+      otel-collector:
+        condition: service_started
+
+  proxy:
+    image: nginx:1.27-alpine
+    container_name: retrieval-proxy
+    volumes:
+      - ../nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - proxy_cache:/var/cache/nginx
+    ports:
+      - "80:80"
+    depends_on:
+      - web
+
+  proxy-exporter:
+    image: nginx/nginx-prometheus-exporter:1.3
+    container_name: retrieval-proxy-exporter
+    command: ["--nginx.scrape-uri=http://proxy:8080/stub_status"]
+    expose:
+      - "9113"
+    depends_on:
+      - proxy
+
+  worker:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: worker
+    container_name: retrieval-worker
+    env_file:
+      - path: ../../.env
+        required: false
+    environment:
+      EMBEDDING_DEVICE: cpu
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: ingestion-worker
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+      WORKER_METRICS_PORT: "9100"
+    expose:
+      - "9100"
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+  image-enrichment:
+    build:
+      context: ../..
+      dockerfile: infra/docker/Dockerfile
+      target: image-enrichment
+    container_name: retrieval-image-enrichment
+    env_file:
+      - path: ../../.env
+        required: false
+    ports:
+      - "8003:8003"
+    environment:
+      OTEL_ENABLED: "true"
+      OTEL_SERVICE_NAME: image-enrichment-service
+      OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4317
+    depends_on:
+      otel-collector:
+        condition: service_started
+
+volumes:
+  proxy_cache:

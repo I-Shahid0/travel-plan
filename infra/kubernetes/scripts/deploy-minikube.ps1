@@ -1,3 +1,8 @@
+param(
+    [ValidateSet("local", "external")]
+    [string]$DeployProfile = "local"
+)
+
 $ErrorActionPreference = "Stop"
 
 function Invoke-External {
@@ -210,9 +215,10 @@ foreach ($target in @("query", "reranker", "itinerary", "worker", "image-enrichm
     } | Out-Null
 }
 
-Write-Host "==> Loading app env from .env"
+Write-Host "==> Loading app env from .env (profile=$DeployProfile)"
 $ValuesLocal = Join-Path $Chart "values.local.yaml"
-& (Join-Path $PSScriptRoot "load-env.ps1") -Root $Root -Release $Release -OutFile $ValuesLocal
+$ValuesProfile = Join-Path $Chart "values-$DeployProfile.yaml"
+& (Join-Path $PSScriptRoot "load-env.ps1") -Root $Root -Release $Release -Profile $DeployProfile -OutFile $ValuesLocal
 
 Write-Host "==> Removing stale resources from pre-rename Helm revisions"
 $staleKinds = @("deployment", "service", "statefulset", "horizontalpodautoscaler", "job")
@@ -227,14 +233,16 @@ foreach ($kind in $staleKinds) {
     }
 }
 
-Write-Host "==> Deploying Helm chart"
+Write-Host "==> Deploying Helm chart (profile=$DeployProfile)"
+$bootstrapIngest = if ($DeployProfile -eq "local") { "true" } else { "false" }
 Invoke-External {
     helm upgrade --install $Release $Chart `
+        -f $ValuesProfile `
         -f $ValuesLocal `
         --set image.tag=$imageTag `
         --set image.pullPolicy=Never `
         --set nodePort.enabled=true `
-        --set bootstrap.sampleIngest.enabled=true `
+        --set bootstrap.sampleIngest.enabled=$bootstrapIngest `
         --wait --timeout 15m
 } | Out-Null
 

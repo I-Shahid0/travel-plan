@@ -1,4 +1,4 @@
-{{- if .Values.keda.enabled }}
+{{- if and .Values.keda.enabled (or .Values.redis.enabled .Values.externalRedis.address) }}
 # Requires the KEDA operator (installed by the deploy script):
 #   helm repo add kedacore https://kedacore.github.io/charts
 #   helm install keda kedacore/keda -n keda --create-namespace
@@ -20,7 +20,13 @@ spec:
     # Scale on real work waiting, not CPU: Redis queue depth.
     - type: redis
       metadata:
+        {{- if .Values.redis.enabled }}
         address: {{ include "retrieval-engine.redisHost" . }}:{{ .Values.redis.port }}
+        {{- else }}
+        address: {{ .Values.externalRedis.address | quote }}
+        password: {{ .Values.externalRedis.password | quote }}
+        enableTLS: {{ .Values.externalRedis.tls | quote }}
+        {{- end }}
         listName: ingestion:jobs
         listLength: {{ .Values.keda.worker.listLength | quote }}
 {{- if .Values.keda.reranker.enabled }}

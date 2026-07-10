@@ -8,35 +8,29 @@ image:
 
 services:
   query:
-    replicaCount: 2
+    replicaCount: 1
     port: 8000
+    resources:
+      requests:
+        cpu: 250m
+        memory: 256Mi
+      limits:
+        cpu: "1"
+        memory: 512Mi
+    hpa:
+      enabled: false
+  reranker:
+    replicaCount: 1
+    port: 8001
     resources:
       requests:
         cpu: 250m
         memory: 512Mi
       limits:
         cpu: "1"
-        memory: 1Gi
+        memory: 2Gi
     hpa:
-      enabled: true
-      minReplicas: 2
-      maxReplicas: 6
-      targetCPUUtilizationPercentage: 70
-  reranker:
-    replicaCount: 1
-    port: 8001
-    resources:
-      requests:
-        cpu: 500m
-        memory: 1Gi
-      limits:
-        cpu: "2"
-        memory: 4Gi
-    hpa:
-      enabled: true
-      minReplicas: 1
-      maxReplicas: 3
-      targetCPUUtilizationPercentage: 75
+      enabled: false
   itinerary:
     replicaCount: 1
     port: 8002
@@ -45,17 +39,17 @@ services:
         cpu: 100m
         memory: 256Mi
       limits:
-        cpu: 500m
+        cpu: 250m
         memory: 512Mi
   worker:
     replicaCount: 1
     resources:
       requests:
+        cpu: 100m
+        memory: 256Mi
+      limits:
         cpu: 250m
         memory: 512Mi
-      limits:
-        cpu: "1"
-        memory: 2Gi
   imageEnrichment:
     replicaCount: 1
     port: 8003
@@ -96,6 +90,13 @@ redis:
       cpu: 250m
       memory: 256Mi
 
+# Parsed from REDIS_URL when deploying with values-external.yaml + load-env --profile external.
+# Used by KEDA to scale workers against Upstash (TLS + password).
+externalRedis:
+  address: ""
+  password: ""
+  tls: false
+
 observability:
   jaeger:
     enabled: true
@@ -115,14 +116,14 @@ keda:
   enabled: true
   worker:
     minReplicas: 1
-    maxReplicas: 4
+    maxReplicas: 1
     listLength: 5 # target jobs waiting per worker replica
   reranker:
     # Latency-based scaling via Prometheus; set services.reranker.hpa.enabled=false
     # when turning this on (KEDA manages its own HPA for the target).
     enabled: false
     minReplicas: 1
-    maxReplicas: 3
+    maxReplicas: 1
     p95ThresholdMs: 500
 
 # Populated at deploy time from .env by infra/kubernetes/scripts/load-env.*

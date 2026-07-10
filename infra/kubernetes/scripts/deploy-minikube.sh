@@ -3,6 +3,7 @@ set -euo pipefail
 
 ROOT="$(cd "$(dirname "$0")/../../.." && pwd)"
 PROFILE="${MINIKUBE_PROFILE:-retrieval}"
+DEPLOY_PROFILE="${DEPLOY_PROFILE:-local}"
 RELEASE="${RELEASE:-retrieval}"
 CHART="$ROOT/infra/kubernetes/helm/retrieval-engine"
 CPUS="${MINIKUBE_CPUS:-4}"
@@ -84,9 +85,10 @@ for target in query reranker itinerary worker image-enrichment; do
   minikube image load "$image" -p "$PROFILE"
 done
 
-echo "==> Loading app env from .env"
+echo "==> Loading app env from .env (profile=$DEPLOY_PROFILE)"
 VALUES_LOCAL="$CHART/values.local.yaml"
-bash "$ROOT/infra/kubernetes/scripts/load-env.sh" "$ROOT" "$VALUES_LOCAL"
+VALUES_PROFILE="$CHART/values-$DEPLOY_PROFILE.yaml"
+bash "$ROOT/infra/kubernetes/scripts/load-env.sh" "$ROOT" "$VALUES_LOCAL" "$DEPLOY_PROFILE"
 
 echo "==> Removing stale resources from pre-rename Helm revisions"
 for kind in deployment service statefulset horizontalpodautoscaler job; do
@@ -100,13 +102,18 @@ for kind in deployment service statefulset horizontalpodautoscaler job; do
   done < <(kubectl get "$kind" -o name 2>/dev/null || true)
 done
 
-echo "==> Deploying Helm chart"
+echo "==> Deploying Helm chart (profile=$DEPLOY_PROFILE)"
+bootstrap_ingest="false"
+if [[ "$DEPLOY_PROFILE" == "local" ]]; then
+  bootstrap_ingest="true"
+fi
 helm upgrade --install "$RELEASE" "$CHART" \
+  -f "$VALUES_PROFILE" \
   -f "$VALUES_LOCAL" \
   --set image.tag="$IMAGE_TAG" \
   --set image.pullPolicy=Never \
   --set nodePort.enabled=true \
-  --set bootstrap.sampleIngest.enabled=true \
+  --set bootstrap.sampleIngest.enabled="$bootstrap_ingest" \
   --wait --timeout 15m
 
 echo "==> Restarting workloads to pick up freshly loaded images"

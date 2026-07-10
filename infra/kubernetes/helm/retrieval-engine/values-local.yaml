@@ -1,0 +1,10 @@
+# In-cluster Postgres + Redis (default minikube / self-hosted stack).
+postgres:
+  enabled: true
+
+redis:
+  enabled: true
+
+bootstrap:
+  sampleIngest:
+    enabled: false

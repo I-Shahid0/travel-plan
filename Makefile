@@ -1,9 +1,11 @@
-COMPOSE := docker compose -f infra/docker/compose.yml
+COMPOSE := docker compose -f infra/docker/compose.local.yml
+COMPOSE_EXTERNAL := docker compose -f infra/docker/compose.external.yml
 DOCKERFILE := infra/docker/Dockerfile
 HELM_CHART := infra/kubernetes/helm/retrieval-engine
 MINIKUBE_PROFILE := retrieval
+DEPLOY_PROFILE ?= local
 
-.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls generate-api web-install web-dev web-build web-test web-auth-migrate web-db-migrate
+.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-deploy-external k8s-reset k8s-loadtest k8s-urls generate-api web-install web-dev web-build web-test web-auth-migrate web-db-migrate compose-up compose-up-external
 
 install:
 	uv sync --all-groups
@@ -83,7 +85,16 @@ docker-build:
 	docker build -f $(DOCKERFILE) --target corpus-operator -t retrieval-corpus-operator:latest .
 
 k8s-deploy:
-	powershell -ExecutionPolicy Bypass -File infra/kubernetes/scripts/deploy-minikube.ps1
+	powershell -ExecutionPolicy Bypass -File infra/kubernetes/scripts/deploy-minikube.ps1 -DeployProfile local
+
+k8s-deploy-external:
+	powershell -ExecutionPolicy Bypass -File infra/kubernetes/scripts/deploy-minikube.ps1 -DeployProfile external
+
+compose-up:
+	$(COMPOSE) up -d
+
+compose-up-external:
+	$(COMPOSE_EXTERNAL) up -d
 
 k8s-reset:
 	minikube stop -p $(MINIKUBE_PROFILE) || true
