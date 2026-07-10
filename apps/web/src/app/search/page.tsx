@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { after } from "next/server";
 
 import { FilterRail } from "@/components/filter-rail";
 import { InsightPanels } from "@/components/insight-panels";
@@ -6,6 +7,7 @@ import { ListingCard } from "@/components/listing-card";
 import { PageHeader } from "@/components/page-header";
 import { Reveal } from "@/components/reveal";
 import { search, type SearchMode } from "@/lib/api/query/client";
+import { recordEvent } from "@/lib/events";
 import { formatCount } from "@/lib/format";
 import { getSession } from "@/lib/session";
 
@@ -54,6 +56,19 @@ export default async function SearchPage({ searchParams }: SearchPageProps) {
         personalize,
       })
     : null;
+
+  // Feed the event store after the response streams — searches are signals
+  // for the For-You sky. Fire-and-forget; recordEvent never throws.
+  if (session && response) {
+    after(() =>
+      recordEvent({
+        userId: session.user.id,
+        type: "search",
+        query: q,
+        metadata: { mode, city: city ?? null, results: response.results.length },
+      }),
+    );
+  }
 
   return (
     <div className="mx-auto max-w-7xl px-5 pt-28 pb-16">

@@ -17,7 +17,9 @@ export function SignOutButton() {
         router.refresh();
       }}
     >
-      Sign out
+      {/* the full label overflows a 390px nav row — shorten below sm */}
+      <span className="sm:hidden">Exit</span>
+      <span className="hidden sm:inline">Sign out</span>
     </button>
   );
 }

@@ -4,6 +4,7 @@ import createClient from "openapi-fetch";
 
 import { env } from "@/lib/env";
 import { toApiError } from "@/lib/api/errors";
+import { apiMetricsMiddleware } from "@/lib/metrics";
 
 import type { components, paths } from "./schema";
 
@@ -17,6 +18,7 @@ const client = createClient<paths>({
   // resolve fetch at call time so tests can substitute globalThis.fetch
   fetch: (request) => globalThis.fetch(request),
 });
+client.use(apiMetricsMiddleware("itinerary"));
 
 /** Typed POST /itinerary against the itinerary service. Server-side only. */
 export async function generateItinerary(
@@ -28,4 +30,17 @@ export async function generateItinerary(
   });
   if (data) return data;
   throw toApiError("itinerary", response.status, error);
+}
+
+/** GET /health — planner status for the Observatory page. Null when down. */
+export async function itineraryHealth(): Promise<Record<string, unknown> | null> {
+  try {
+    const { data } = await client.GET("/health", {
+      cache: "no-store",
+      signal: AbortSignal.timeout(3000),
+    });
+    return (data as Record<string, unknown>) ?? null;
+  } catch {
+    return null;
+  }
 }

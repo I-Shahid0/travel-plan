@@ -1,4 +1,7 @@
-# Meridian web (Next.js) — bun for install, build, and runtime.
+# Meridian web (Next.js) — bun for install and build; node for the runtime.
+# (@vercel/otel's fetch instrumentation corrupts response bodies under the bun
+# runtime — empty JSON on every backend call — so the standalone server runs
+# on node, same as the Playwright rig. See docs/handoff/phase-10.md.)
 FROM oven/bun:1.3 AS deps
 
 WORKDIR /app
@@ -15,7 +18,7 @@ ENV NEXT_TELEMETRY_DISABLED=1 \
 # next/font downloads Google fonts at build time — needs network.
 RUN bun run build
 
-FROM oven/bun:1.3 AS runtime
+FROM node:22-alpine AS runtime
 
 WORKDIR /app
 ENV NODE_ENV=production \
@@ -26,4 +29,4 @@ COPY --from=build /app/.next/standalone ./
 COPY --from=build /app/.next/static ./.next/static
 
 EXPOSE 3001
-CMD ["bun", "server.js"]
+CMD ["node", "server.js"]

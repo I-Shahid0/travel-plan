@@ -1,7 +1,7 @@
 import { betterAuth } from "better-auth";
 import { nextCookies } from "better-auth/next-js";
-import { Pool } from "pg";
 
+import { getPool } from "@/lib/db";
 import { env } from "@/lib/env";
 
 /**
@@ -14,7 +14,10 @@ import { env } from "@/lib/env";
 export const auth = betterAuth({
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  database: new Pool({ connectionString: env.DATABASE_URL }),
+  database: getPool(),
+  // The app is reachable both directly (:3001) and through the nginx
+  // reverse proxy (:80) until a domain lands.
+  trustedOrigins: ["http://localhost", "http://localhost:3001", "http://127.0.0.1"],
   emailAndPassword: {
     enabled: true,
   },

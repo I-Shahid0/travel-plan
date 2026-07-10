@@ -3,7 +3,7 @@ DOCKERFILE := infra/docker/Dockerfile
 HELM_CHART := infra/kubernetes/helm/retrieval-engine
 MINIKUBE_PROFILE := retrieval
 
-.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls generate-api web-install web-dev web-build web-test web-auth-migrate
+.PHONY: install dev db-up db-down db-logs otel-up obs-up redis-up ingest ingest-sample embed index-fts eval eval-degradation serve serve-reranker serve-itinerary serve-worker serve-image-enrichment-worker test lint format docker-build k8s-deploy k8s-reset k8s-loadtest k8s-urls generate-api web-install web-dev web-build web-test web-auth-migrate web-db-migrate
 
 install:
 	uv sync --all-groups
@@ -118,3 +118,7 @@ web-test:
 
 web-auth-migrate:
 	cd apps/web && bun run auth:migrate
+
+# Web app's own tables (user event store) — forward-only SQL migrations
+web-db-migrate:
+	cd apps/web && bun run db:migrate

@@ -8,6 +8,50 @@ This file contains the original, phase-by-phase project README content from `REA
 
 Personalized listing search & ranking engine (Yelp Open Dataset → travel/experiences framing).
 
+## Phase 10 — Edge, recommendations & frontend observability
+
+The frontend gets the production treatment the backend earned in Phases 5–7:
+
+- **nginx edge** at `http://localhost` (no domain yet): proxy-cache for
+  immutable `/_next/static` assets (verified MISS→HIT), per-IP rate limits
+  (20 r/s browsing; 10 r/min on sign-in/sign-up — credential bursts 429 while
+  80 parallel page loads pass), security headers, nginx-prometheus-exporter.
+- **User event store** (`web_user_events`, `make web-db-migrate`): the web app
+  records every search, listing view, itinerary, and feed click — deduped,
+  fire-and-forget, erasable from `/history`.
+- **Recommendation loop**: `/foryou` seeds `POST /recommendations` with your
+  recent listings; the query service builds a recency-weighted embedding
+  centroid in pgvector and attributes each result to the seed that pulled it
+  in ("echoes <place>"). Cold start falls back to a popularity ranking.
+- **New query-service routes**: `GET /listings` (faceted browse), 
+  `GET /listings/{id}`, `GET /listings/{id}/similar`, `POST /recommendations`
+  — all typed through the OpenAPI → TypeScript pipeline, all behind a
+  fail-open Redis response cache where cacheable.
+- **New surfaces**: `/browse` (facets/filters/pagination), `/listing/<id>`
+  (attributes + neighboring stars), `/foryou`, `/history`, `/observatory`
+  (health + breakers + eval split — every API route now has a UI consumer).
+- **Frontend observability**: `@vercel/otel` in `instrumentation.ts` joins the
+  web app to the shared collector (one Jaeger trace: browser → web →
+  query-service → reranker); prom-client metrics at `/api/metrics` (blocked at
+  the edge, scraped internally); Grafana dashboard "Meridian Web — Frontend &
+  Proxy" auto-provisioned.
+- **Fix**: the reranker container image had no onnxruntime dependency path
+  (Windows dev rides the `gpu` group) — added
+  `onnxruntime ; sys_platform != 'win32'` to the reranker group.
+
+Details: `docs/handoff/phase-10.md`.
+
+## Phase 9 — Meridian frontend
+
+`apps/web`: Next.js App Router on bun with end-to-end type safety
+(Pydantic → OpenAPI → generated TS → typed openapi-fetch clients), Better
+Auth (email/password, `auth_*` tables in the shared Postgres, `yelpUserId`
+bridge to dataset personalization), and the celestial-cartography design
+system — deterministic constellation sigils per listing, canvas starfield,
+Fraunces/Space Grotesk/IBM Plex Mono. Search with URL-state filters and
+retrieval-mode debugging, personalized ranking, LLM itineraries with budget
+verdicts. Details: `docs/handoff/phase-9.md`.
+
 ## Repo layout
 
 ```

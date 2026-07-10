@@ -10,11 +10,18 @@ export const metadata: Metadata = {
   title: "Plan a journey",
 };
 
-export default async function PlanPage() {
+interface PlanPageProps {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+}
+
+export default async function PlanPage({ searchParams }: PlanPageProps) {
   const session = await getSession();
   if (!session) {
     redirect("/sign-in?next=/plan");
   }
+  const params = await searchParams;
+  const qParam = params.q;
+  const initialQuery = (Array.isArray(qParam) ? qParam[0] : qParam)?.trim() ?? "";
 
   const yelpUserId = session.user.yelpUserId ?? null;
 
@@ -44,7 +51,7 @@ export default async function PlanPage() {
         )}
       </PageHeader>
 
-      <PlanConsole personalized={Boolean(yelpUserId)} />
+      <PlanConsole personalized={Boolean(yelpUserId)} initialQuery={initialQuery} />
     </div>
   );
 }

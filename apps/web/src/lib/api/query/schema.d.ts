@@ -4,6 +4,74 @@
  */
 
 export interface paths {
+    "/listings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Browse Listings */
+        get: operations["browse_listings_listings_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/listings/{listing_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Listing */
+        get: operations["get_listing_listings__listing_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/listings/{listing_id}/similar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Similar Listings */
+        get: operations["similar_listings_listings__listing_id__similar_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/recommendations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recommendations */
+        post: operations["recommendations_recommendations_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/health/live": {
         parameters: {
             query?: never;
@@ -119,6 +187,27 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** BrowseFacets */
+        BrowseFacets: {
+            /** Cities */
+            cities: components["schemas"]["FacetValue"][];
+            /** Categories */
+            categories: components["schemas"]["FacetValue"][];
+        };
+        /** BrowseResponse */
+        BrowseResponse: {
+            /** Total */
+            total: number;
+            /** Limit */
+            limit: number;
+            /** Offset */
+            offset: number;
+            /** Sort */
+            sort: string;
+            /** Results */
+            results: components["schemas"]["ListingResult"][];
+            facets?: components["schemas"]["BrowseFacets"] | null;
+        };
         /** EvalSplitResponse */
         EvalSplitResponse: {
             /** Cutoff Date */
@@ -129,6 +218,13 @@ export interface components {
             test_count: number;
             /** Notes */
             notes?: string | null;
+        };
+        /** FacetValue */
+        FacetValue: {
+            /** Value */
+            value: string;
+            /** Count */
+            count: number;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -141,6 +237,47 @@ export interface components {
             status: string;
             /** Listings Count */
             listings_count?: number | null;
+        };
+        /** ListingDetail */
+        ListingDetail: {
+            /** Id */
+            id: string;
+            /** Title */
+            title: string;
+            /** Description */
+            description: string | null;
+            /** Categories */
+            categories: string[];
+            /** City */
+            city: string | null;
+            /** State */
+            state: string | null;
+            /** Price Level */
+            price_level: number | null;
+            /** Stars */
+            stars: number | null;
+            /** Review Count */
+            review_count: number;
+            /** Primary Image Url */
+            primary_image_url?: string | null;
+            /** Latitude */
+            latitude?: number | null;
+            /** Longitude */
+            longitude?: number | null;
+            /**
+             * Attributes
+             * @default {}
+             */
+            attributes: {
+                [key: string]: unknown;
+            };
+            /** Postal Code */
+            postal_code?: string | null;
+            /**
+             * Is Open
+             * @default true
+             */
+            is_open: boolean;
         };
         /** ListingResult */
         ListingResult: {
@@ -169,6 +306,40 @@ export interface components {
             /** Longitude */
             longitude?: number | null;
         };
+        /**
+         * RecommendationRequest
+         * @description Seed ids ordered most-recent-first; recency controls centroid weighting.
+         */
+        RecommendationRequest: {
+            /** Seed Listing Ids */
+            seed_listing_ids: string[];
+            /**
+             * Exclude Listing Ids
+             * @default []
+             */
+            exclude_listing_ids: string[];
+            /**
+             * Limit
+             * @default 20
+             */
+            limit: number;
+        };
+        /** RecommendationResponse */
+        RecommendationResponse: {
+            /** Results */
+            results: components["schemas"]["ListingResult"][];
+            /**
+             * Anchors
+             * @default {}
+             */
+            anchors: {
+                [key: string]: string;
+            };
+            /** Seed Count */
+            seed_count: number;
+            /** Strategy */
+            strategy: string;
+        };
         /** SearchResponse */
         SearchResponse: {
             /** Query */
@@ -193,6 +364,13 @@ export interface components {
                 [key: string]: unknown;
             } | null;
         };
+        /** SimilarResponse */
+        SimilarResponse: {
+            /** Listing Id */
+            listing_id: string;
+            /** Results */
+            results: components["schemas"]["ListingResult"][];
+        };
         /** ValidationError */
         ValidationError: {
             /** Location */
@@ -215,6 +393,148 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    browse_listings_listings_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+                sort?: string;
+                /** @description Include city/category facet counts */
+                include_facets?: boolean;
+                /** @description Max price level (1-4) */
+                price_max?: number | null;
+                /** @description Category filter */
+                category?: string | null;
+                /** @description City filter */
+                city?: string | null;
+                /** @description Minimum star rating */
+                min_stars?: number | null;
+                /** @description Only listings currently marked open */
+                open_only?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BrowseResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    get_listing_listings__listing_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ListingDetail"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    similar_listings_listings__listing_id__similar_get: {
+        parameters: {
+            query?: {
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                listing_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SimilarResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    recommendations_recommendations_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RecommendationRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecommendationResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_live_health_live_get: {
         parameters: {
             query?: never;

@@ -6,7 +6,7 @@
  */
 import { chromium, type BrowserContext, type Page } from "playwright-core";
 
-const BASE = "http://localhost:3001";
+const BASE = process.env.SHOOT_BASE ?? "http://localhost:3001";
 const outDir = process.argv[2] ?? "shots";
 const signedIn = process.argv.includes("signedIn");
 
@@ -112,9 +112,47 @@ async function main() {
     });
   }
 
+  // phase 10 surfaces
+  await shoot(context, "14-browse", `${BASE}/browse`, { settle: 2500 });
+  await shoot(
+    context,
+    "15-browse-filtered",
+    `${BASE}/browse?city=Philadelphia&category=Restaurants&min_stars=4&sort=reviews&page=2`,
+    { settle: 2500 },
+  );
+  // visiting listings records views → seeds the For-You feed below
+  await shoot(context, "16-listing", `${BASE}/listing/-fs09akgCKv5rTTy7iUHUg`, { settle: 2500 });
+  await shoot(context, "17-listing-via-browse", `${BASE}/browse?category=Bookstores`, {
+    settle: 2000,
+    interact: async (page) => {
+      // cards sit in a reveal-on-scroll stagger (opacity 0 until observed),
+      // so follow the first card's href instead of clicking it
+      const href = await page
+        .locator("a[href^='/listing/']")
+        .first()
+        .getAttribute("href");
+      if (href) {
+        await page.goto(`${BASE}${href}`, { waitUntil: "networkidle" });
+        await page.waitForTimeout(2000);
+      }
+    },
+  });
+  await shoot(context, "18-observatory", `${BASE}/observatory`, { settle: 2000 });
+
+  if (signedIn) {
+    await shoot(context, "19-foryou", `${BASE}/foryou`, { settle: 2500 });
+    await shoot(context, "20-history", `${BASE}/history`, { settle: 2000 });
+  }
+
   // mobile sweeps
   await shoot(context, "12-m-landing", `${BASE}/`, { width: 390, settle: 2000 });
   await shoot(context, "13-m-search", `${BASE}/search?q=late+night+ramen`, { width: 390, settle: 2500 });
+  await shoot(context, "21-m-browse", `${BASE}/browse`, { width: 390, settle: 2500 });
+  await shoot(context, "22-m-listing", `${BASE}/listing/-fs09akgCKv5rTTy7iUHUg`, { width: 390, settle: 2500 });
+  if (signedIn) {
+    await shoot(context, "23-m-foryou", `${BASE}/foryou`, { width: 390, settle: 2500 });
+    await shoot(context, "24-m-history", `${BASE}/history`, { width: 390, settle: 2000 });
+  }
 
   await browser.close();
 }

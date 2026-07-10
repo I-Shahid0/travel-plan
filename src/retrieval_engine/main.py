@@ -6,6 +6,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.exc import ProgrammingError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from retrieval_engine.api.listings import router as listings_router
 from retrieval_engine.api.schemas import EvalSplitResponse, HealthResponse, SearchResponse
 from retrieval_engine.api.search import keyword_search
 from retrieval_engine.config import settings
@@ -37,6 +38,7 @@ app = FastAPI(
 )
 instrument_fastapi(app)
 setup_fastapi_metrics(app)
+app.include_router(listings_router)
 
 
 def _search_filters(

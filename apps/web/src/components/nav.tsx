@@ -20,24 +20,44 @@ export async function Nav() {
           </span>
         </Link>
 
-        <nav className="flex min-w-0 items-center gap-0.5 sm:gap-2" aria-label="Primary">
+        <nav className="flex min-w-0 items-center gap-0.5 sm:gap-1.5" aria-label="Primary">
           <Link
             href="/search"
-            className="voice-etch rounded-full px-2 py-2 transition-colors hover:text-starlight sm:px-3"
+            className="voice-etch rounded-full px-1.5 py-2 transition-colors hover:text-starlight sm:px-3"
           >
             Search
           </Link>
           <Link
+            href="/browse"
+            className="voice-etch rounded-full px-1.5 py-2 transition-colors hover:text-starlight sm:px-3"
+          >
+            Browse
+          </Link>
+          <Link
             href="/plan"
-            className="voice-etch rounded-full px-2 py-2 transition-colors hover:text-starlight sm:px-3"
+            className="voice-etch rounded-full px-1.5 py-2 transition-colors hover:text-starlight sm:px-3"
           >
             Plan
           </Link>
           {session ? (
-            <div className="ml-1 flex min-w-0 items-center gap-0.5 border-l border-(--line) pl-2 sm:ml-2 sm:gap-2 sm:pl-4">
+            <div className="ml-1 flex min-w-0 items-center gap-0.5 border-l border-(--line) pl-1.5 sm:ml-2 sm:gap-1.5 sm:pl-3">
+              <Link
+                href="/foryou"
+                className="voice-etch rounded-full px-1.5 py-2 whitespace-nowrap !text-aurora-violet transition-colors hover:!text-starlight sm:px-3"
+              >
+                For&nbsp;you
+              </Link>
+              <Link
+                href="/history"
+                className="voice-etch hidden rounded-full px-1.5 py-2 transition-colors hover:text-starlight sm:inline sm:px-3"
+              >
+                History
+              </Link>
+              {/* hidden on mobile (footer carries the link) so the row never
+                  crushes the name to a single letter at 390px */}
               <Link
                 href="/profile"
-                className="voice-etch truncate rounded-full px-2 py-2 !text-aurora-teal transition-colors hover:!text-starlight sm:px-3"
+                className="voice-etch hidden truncate rounded-full px-1.5 py-2 !text-aurora-teal transition-colors hover:!text-starlight sm:inline sm:px-3"
                 title={session.user.email}
               >
                 {session.user.name?.split(" ")[0] ?? "Profile"}

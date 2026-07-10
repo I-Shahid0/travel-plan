@@ -13,7 +13,13 @@ const JOURNEY_IDEAS = [
   "a night of live music and late food in New Orleans",
 ];
 
-export function PlanConsole({ personalized }: { personalized: boolean }) {
+export function PlanConsole({
+  personalized,
+  initialQuery = "",
+}: {
+  personalized: boolean;
+  initialQuery?: string;
+}) {
   const [state, formAction, pending] = useActionState(planTrip, initialPlanState);
 
   return (
@@ -32,7 +38,7 @@ export function PlanConsole({ personalized }: { personalized: boolean }) {
               minLength={3}
               placeholder="a weekend of oysters and jazz in New Orleans…"
               className="input-field !py-3.5"
-              defaultValue=""
+              defaultValue={initialQuery}
             />
           </div>
 

@@ -2832,6 +2832,7 @@ operator = [
 ]
 reranker = [
     { name = "huggingface-hub" },
+    { name = "onnxruntime", marker = "sys_platform != 'win32'" },
     { name = "transformers" },
 ]
 
@@ -2874,6 +2875,7 @@ llm = [{ name = "google-generativeai", specifier = ">=0.8.0" }]
 operator = [{ name = "kubernetes", specifier = ">=31.0.0" }]
 reranker = [
     { name = "huggingface-hub", specifier = ">=0.23.0" },
+    { name = "onnxruntime", marker = "sys_platform != 'win32'", specifier = ">=1.19.0" },
     { name = "transformers", specifier = ">=4.40.0" },
 ]
 

@@ -2,6 +2,7 @@
 
 import { generateItinerary, type ItineraryResponse } from "@/lib/api/itinerary/client";
 import { ApiError } from "@/lib/api/errors";
+import { recordEvent } from "@/lib/events";
 import { getSession } from "@/lib/session";
 
 export interface PlanState {
@@ -30,6 +31,17 @@ export async function planTrip(_previous: PlanState, formData: FormData): Promis
       days,
       user_id: session.user.yelpUserId ?? null,
       top_k: 12,
+    });
+    await recordEvent({
+      userId: session.user.id,
+      type: "itinerary",
+      query,
+      metadata: {
+        days,
+        listings: itinerary.listings_used.length,
+        provider: itinerary.llm_provider,
+        withinBudget: itinerary.budget.within_budget,
+      },
     });
     return { status: "ok", itinerary, error: null };
   } catch (error) {

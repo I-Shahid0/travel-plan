@@ -18,3 +18,10 @@ scrape_configs:
   - job_name: image-enrichment-service
     static_configs:
       - targets: ["image-enrichment:8003"]
+  - job_name: meridian-web
+    metrics_path: /api/metrics
+    static_configs:
+      - targets: ["web:3001"]
+  - job_name: nginx-proxy
+    static_configs:
+      - targets: ["proxy-exporter:9113"]

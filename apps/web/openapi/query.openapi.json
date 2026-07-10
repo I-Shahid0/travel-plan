@@ -6,6 +6,301 @@
     "version": "0.8.0"
   },
   "paths": {
+    "/listings": {
+      "get": {
+        "summary": "Browse Listings",
+        "operationId": "browse_listings_listings_get",
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 60,
+              "minimum": 1,
+              "default": 24,
+              "title": "Limit"
+            }
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 10000,
+              "minimum": 0,
+              "default": 0,
+              "title": "Offset"
+            }
+          },
+          {
+            "name": "sort",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "pattern": "^(rating|reviews|name)$",
+              "default": "rating",
+              "title": "Sort"
+            }
+          },
+          {
+            "name": "include_facets",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Include city/category facet counts",
+              "default": false,
+              "title": "Include Facets"
+            },
+            "description": "Include city/category facet counts"
+          },
+          {
+            "name": "price_max",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "integer",
+                  "maximum": 4,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Max price level (1-4)",
+              "title": "Price Max"
+            },
+            "description": "Max price level (1-4)"
+          },
+          {
+            "name": "category",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Category filter",
+              "title": "Category"
+            },
+            "description": "Category filter"
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "string",
+                  "minLength": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "City filter",
+              "title": "City"
+            },
+            "description": "City filter"
+          },
+          {
+            "name": "min_stars",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "number",
+                  "maximum": 5,
+                  "minimum": 1
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Minimum star rating",
+              "title": "Min Stars"
+            },
+            "description": "Minimum star rating"
+          },
+          {
+            "name": "open_only",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "boolean",
+              "description": "Only listings currently marked open",
+              "default": false,
+              "title": "Open Only"
+            },
+            "description": "Only listings currently marked open"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/BrowseResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/listings/{listing_id}": {
+      "get": {
+        "summary": "Get Listing",
+        "operationId": "get_listing_listings__listing_id__get",
+        "parameters": [
+          {
+            "name": "listing_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Listing Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ListingDetail"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/listings/{listing_id}/similar": {
+      "get": {
+        "summary": "Similar Listings",
+        "operationId": "similar_listings_listings__listing_id__similar_get",
+        "parameters": [
+          {
+            "name": "listing_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Listing Id"
+            }
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer",
+              "maximum": 48,
+              "minimum": 1,
+              "default": 12,
+              "title": "Limit"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SimilarResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/recommendations": {
+      "post": {
+        "summary": "Recommendations",
+        "operationId": "recommendations_recommendations_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RecommendationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecommendationResponse"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/health/live": {
       "get": {
         "summary": "Health Live",
@@ -358,6 +653,76 @@
   },
   "components": {
     "schemas": {
+      "BrowseFacets": {
+        "properties": {
+          "cities": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "type": "array",
+            "title": "Cities"
+          },
+          "categories": {
+            "items": {
+              "$ref": "#/components/schemas/FacetValue"
+            },
+            "type": "array",
+            "title": "Categories"
+          }
+        },
+        "type": "object",
+        "required": [
+          "cities",
+          "categories"
+        ],
+        "title": "BrowseFacets"
+      },
+      "BrowseResponse": {
+        "properties": {
+          "total": {
+            "type": "integer",
+            "title": "Total"
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit"
+          },
+          "offset": {
+            "type": "integer",
+            "title": "Offset"
+          },
+          "sort": {
+            "type": "string",
+            "title": "Sort"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ListingResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "facets": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/BrowseFacets"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "total",
+          "limit",
+          "offset",
+          "sort",
+          "results"
+        ],
+        "title": "BrowseResponse"
+      },
       "EvalSplitResponse": {
         "properties": {
           "cutoff_date": {
@@ -391,6 +756,24 @@
           "test_count"
         ],
         "title": "EvalSplitResponse"
+      },
+      "FacetValue": {
+        "properties": {
+          "value": {
+            "type": "string",
+            "title": "Value"
+          },
+          "count": {
+            "type": "integer",
+            "title": "Count"
+          }
+        },
+        "type": "object",
+        "required": [
+          "value",
+          "count"
+        ],
+        "title": "FacetValue"
       },
       "HTTPValidationError": {
         "properties": {
@@ -428,6 +811,152 @@
           "status"
         ],
         "title": "HealthResponse"
+      },
+      "ListingDetail": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "title": {
+            "type": "string",
+            "title": "Title"
+          },
+          "description": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "categories": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Categories"
+          },
+          "city": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "City"
+          },
+          "state": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "State"
+          },
+          "price_level": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Price Level"
+          },
+          "stars": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Stars"
+          },
+          "review_count": {
+            "type": "integer",
+            "title": "Review Count"
+          },
+          "primary_image_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Primary Image Url"
+          },
+          "latitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Latitude"
+          },
+          "longitude": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Longitude"
+          },
+          "attributes": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Attributes",
+            "default": {}
+          },
+          "postal_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Postal Code"
+          },
+          "is_open": {
+            "type": "boolean",
+            "title": "Is Open",
+            "default": true
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "title",
+          "description",
+          "categories",
+          "city",
+          "state",
+          "price_level",
+          "stars",
+          "review_count"
+        ],
+        "title": "ListingDetail"
       },
       "ListingResult": {
         "properties": {
@@ -553,6 +1082,70 @@
         ],
         "title": "ListingResult"
       },
+      "RecommendationRequest": {
+        "properties": {
+          "seed_listing_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Seed Listing Ids"
+          },
+          "exclude_listing_ids": {
+            "items": {
+              "type": "string"
+            },
+            "type": "array",
+            "title": "Exclude Listing Ids",
+            "default": []
+          },
+          "limit": {
+            "type": "integer",
+            "title": "Limit",
+            "default": 20
+          }
+        },
+        "type": "object",
+        "required": [
+          "seed_listing_ids"
+        ],
+        "title": "RecommendationRequest",
+        "description": "Seed ids ordered most-recent-first; recency controls centroid weighting."
+      },
+      "RecommendationResponse": {
+        "properties": {
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ListingResult"
+            },
+            "type": "array",
+            "title": "Results"
+          },
+          "anchors": {
+            "additionalProperties": {
+              "type": "string"
+            },
+            "type": "object",
+            "title": "Anchors",
+            "default": {}
+          },
+          "seed_count": {
+            "type": "integer",
+            "title": "Seed Count"
+          },
+          "strategy": {
+            "type": "string",
+            "title": "Strategy"
+          }
+        },
+        "type": "object",
+        "required": [
+          "results",
+          "seed_count",
+          "strategy"
+        ],
+        "title": "RecommendationResponse"
+      },
       "SearchResponse": {
         "properties": {
           "query": {
@@ -618,6 +1211,27 @@
           "results"
         ],
         "title": "SearchResponse"
+      },
+      "SimilarResponse": {
+        "properties": {
+          "listing_id": {
+            "type": "string",
+            "title": "Listing Id"
+          },
+          "results": {
+            "items": {
+              "$ref": "#/components/schemas/ListingResult"
+            },
+            "type": "array",
+            "title": "Results"
+          }
+        },
+        "type": "object",
+        "required": [
+          "listing_id",
+          "results"
+        ],
+        "title": "SimilarResponse"
       },
       "ValidationError": {
         "properties": {

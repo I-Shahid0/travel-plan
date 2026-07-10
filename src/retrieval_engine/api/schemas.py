@@ -26,6 +26,52 @@ class SearchResponse(BaseModel):
     personalization: dict | None = None
 
 
+class ListingDetail(ListingResult):
+    attributes: dict = {}
+    postal_code: str | None = None
+    is_open: bool = True
+
+
+class FacetValue(BaseModel):
+    value: str
+    count: int
+
+
+class BrowseFacets(BaseModel):
+    cities: list[FacetValue]
+    categories: list[FacetValue]
+
+
+class BrowseResponse(BaseModel):
+    total: int
+    limit: int
+    offset: int
+    sort: str
+    results: list[ListingResult]
+    facets: BrowseFacets | None = None
+
+
+class SimilarResponse(BaseModel):
+    listing_id: str
+    results: list[ListingResult]
+
+
+class RecommendationRequest(BaseModel):
+    """Seed ids ordered most-recent-first; recency controls centroid weighting."""
+
+    seed_listing_ids: list[str]
+    exclude_listing_ids: list[str] = []
+    limit: int = 20
+
+
+class RecommendationResponse(BaseModel):
+    results: list[ListingResult]
+    # result listing id -> the seed listing that pulled it into the feed
+    anchors: dict[str, str] = {}
+    seed_count: int
+    strategy: str
+
+
 class HealthResponse(BaseModel):
     status: str
     listings_count: int | None = None

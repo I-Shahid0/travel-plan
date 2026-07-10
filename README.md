@@ -2,7 +2,7 @@
 
 Personalized listing search & ranking for travel/experiences, built on the Yelp Open Dataset.
 
-The backend exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes). As of **Phase 9** it also ships a user-facing frontend: **Meridian** (`apps/web`), a Next.js app with end-to-end type safety from the FastAPI OpenAPI schemas and Better Auth accounts.
+The backend exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes). As of **Phase 9** it also ships a user-facing frontend: **Meridian** (`apps/web`), a Next.js app with end-to-end type safety from the FastAPI OpenAPI schemas and Better Auth accounts. **Phase 10** adds an nginx edge (caching + rate limiting), a behavioral recommendation feed built on a user event store, browse/history surfaces, and frontend observability (OTel traces + Prometheus metrics from the web app itself).
 
 For the full phase-by-phase development notes, see `ABOUT_ME.md`.
 
@@ -21,10 +21,16 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
 4. `ingestion/worker`
    - Async ingest/embed/index jobs via Redis queue
 5. `web` — **Meridian** (Next.js, port `3001`)
-   - Search, personalization, and trip planning UI
+   - Search, browse, recommendations, history, personalization, and trip planning UI
    - Better Auth accounts; typed clients generated from OpenAPI
+   - Emits OTel traces + Prometheus metrics like the Python services
    - See [apps/web/README.md](apps/web/README.md)
-6. Observability stack (when enabled)
+6. `proxy` — nginx edge (port `80`)
+   - Reverse proxy in front of Meridian (no domain yet — `http://localhost`)
+   - Edge caching for immutable build assets, per-IP rate limiting (stricter on
+     credential endpoints), security headers
+   - `proxy-exporter` publishes nginx metrics to Prometheus
+7. Observability stack (when enabled)
    - Jaeger UI (`16686`)
    - Grafana (`3000`)
    - Prometheus (`9090`)
@@ -35,7 +41,14 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
 
 Assuming services are running locally:
 
-- **Meridian (the product): `http://localhost:3001`**
+- **Meridian (the product): `http://localhost`** (nginx edge) or `http://localhost:3001` (direct)
+  - `/search` — hybrid semantic search with filters and retrieval-mode debugging
+  - `/browse` — the full atlas with facets, filters, sorting, pagination
+  - `/listing/<id>` — listing pages with embedding-nearest "neighboring stars"
+  - `/foryou` — recommendation feed rebuilt from your recorded actions
+  - `/history` — your event log (searches, views, journeys), erasable
+  - `/plan` — LLM itineraries with a latency/cost budget verdict
+  - `/observatory` — live service health, circuit breakers, eval split
 
 - Query API docs: `http://localhost:8000/docs`
 - Query health: `http://localhost:8000/health`
@@ -127,7 +140,32 @@ You’ll receive:
 - LLM provider/model info (or `template` fallback)
 - a latency/cost budget verdict
 
-### 4) Inspect resilience and degradation behavior
+### 4) Browse, listing details & recommendations
+
+```bash
+# Paginated browse with filters, sorting, and facet counts
+curl "http://localhost:8000/listings?city=Philadelphia&min_stars=4&sort=reviews&include_facets=true"
+
+# One listing, full detail (attributes, coordinates, open state)
+curl "http://localhost:8000/listings/<listing_id>"
+
+# Embedding nearest-neighbours ("neighboring stars")
+curl "http://localhost:8000/listings/<listing_id>/similar?limit=8"
+
+# Content-based feed: recency-weighted embedding centroid over seed listings.
+# Seeds ordered most-recent-first; response attributes each result to the
+# seed that pulled it in (`anchors`). No seeds → popularity fallback.
+curl -X POST http://localhost:8000/recommendations \
+  -H "Content-Type: application/json" \
+  -d '{"seed_listing_ids":["<id1>","<id2>"],"limit":10}'
+```
+
+Facets and similar/recommendation responses are cached in Redis (fail-open,
+10 min / 1 h TTLs). In Meridian these power `/browse`, `/listing/<id>`, and
+`/foryou` — the feed's seeds come from the `web_user_events` table, where the
+web app records every search, listing view, itinerary, and feed click.
+
+### 5) Inspect resilience and degradation behavior
 
 Endpoint:
 
@@ -135,7 +173,7 @@ Endpoint:
 
 Plus traces and metrics in Jaeger/Grafana when observability is enabled.
 
-### 5) Offline evaluation
+### 6) Offline evaluation
 
 - `GET http://localhost:8000/eval/split` (metadata for eval split)
 - CLI: `uv run eval` (writes eval results into `results/`)
@@ -226,6 +264,35 @@ Sign up, search with filters and retrieval modes, link a Yelp traveler id on
 the profile page for personalized ranking, and plot LLM itineraries on
 `/plan` with a live latency/cost budget verdict. Design notes and the
 type-safety pipeline live in [apps/web/README.md](apps/web/README.md).
+
+## Phase 10: edge, recommendations & frontend observability
+
+Everything the backend learned in Phases 6–7 now applies to the frontend too:
+
+- **nginx edge** (`infra/nginx/nginx.conf`, `http://localhost`): reverse proxy
+  in front of Meridian with edge caching for immutable `/_next/static` assets
+  (`X-Cache-Status: HIT`), per-IP rate limiting (20 r/s browsing,
+  10 r/min on sign-in/sign-up), security headers, and an nginx-prometheus-exporter
+  sidecar. `/api/metrics` is refused at the edge — scraping happens only on the
+  compose network.
+- **User event store** (`web_user_events`, `apps/web/migrations/`): the web app
+  records searches, listing views, itineraries, and feed clicks (fire-and-forget,
+  deduped, erasable on `/history`). Migrations run via `make web-db-migrate`.
+- **Recommendation feed** (`/foryou`): seeds from your recent events →
+  `POST /recommendations` builds a recency-weighted embedding centroid in
+  pgvector and explains every suggestion ("echoes <place you viewed>").
+  Cold start falls back to a popularity ranking.
+- **Browse + listing pages** (`/browse`, `/listing/<id>`): faceted browsing
+  (city/category counts computed with the standard remove-own-dimension rule)
+  and detail pages with curated Yelp attributes and embedding nearest-neighbours.
+- **Frontend observability**: the Next.js app registers OpenTelemetry
+  (`@vercel/otel`) against the same collector — one Jaeger trace now spans
+  browser request → web render → query-service → reranker. Prometheus scrapes
+  `web:3001/api/metrics` (typed-client latency histograms, events recorded,
+  feeds served) and the nginx exporter; the **Meridian Web — Frontend & Proxy**
+  Grafana dashboard is auto-provisioned.
+
+Details: [docs/handoff/phase-10.md](docs/handoff/phase-10.md).
 
 ## Phase 8 (planned): image enrichment
 

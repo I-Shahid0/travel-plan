@@ -50,6 +50,14 @@ export default async function LandingPage() {
           <div className="anim-rise mt-6" style={{ animationDelay: "320ms" }}>
             <SampleQueries />
           </div>
+
+          <Link
+            href="/browse"
+            className="anim-rise mt-8 font-mono text-[0.6875rem] tracking-[0.18em] text-faint uppercase transition-colors hover:text-brass-bright"
+            style={{ animationDelay: "400ms" }}
+          >
+            or unroll the full atlas ↓
+          </Link>
         </div>
 
         {/* soft horizon */}
@@ -71,7 +79,7 @@ export default async function LandingPage() {
           </h2>
         </Reveal>
 
-        <Reveal className="grid gap-5 md:grid-cols-3">
+        <Reveal className="grid gap-5 md:grid-cols-2 xl:grid-cols-4">
           <article className="panel-etched hairline-aurora p-7">
             <p className="voice-etch mb-5 !text-aurora-teal">01 · Retrieval</p>
             <h3 className="voice-display text-xl text-starlight">Hybrid search</h3>
@@ -105,6 +113,18 @@ export default async function LandingPage() {
             </p>
             <Link href="/plan" className="chip chip-link mt-6">
               Plan a trip →
+            </Link>
+          </article>
+
+          <article className="panel-etched hairline-aurora p-7">
+            <p className="voice-etch mb-5 !text-brass">04 · Memory</p>
+            <h3 className="voice-display text-xl text-starlight">A feed that learns</h3>
+            <p className="mt-3 text-sm leading-relaxed text-dim">
+              Every search, visit, and journey becomes a signal. The For-You sky rebuilds itself
+              around your recent orbit — and tells you which star pulled each suggestion in.
+            </p>
+            <Link href="/foryou" className="chip chip-link mt-6">
+              See your sky →
             </Link>
           </article>
         </Reveal>
