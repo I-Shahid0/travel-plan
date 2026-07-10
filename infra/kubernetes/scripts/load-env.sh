@@ -35,11 +35,17 @@ mkdir -p "$(dirname "$OUT_FILE")"
 {
   echo "appEnv:"
   for key in "${!VARS[@]}"; do
-    [[ "$key" == "GOOGLE_API_KEY" || "$key" == "FIRECRAWL_API_KEY" ]] && continue
+    [[ "$key" == "GOOGLE_API_KEY" || "$key" == "FIRECRAWL_API_KEY" || "$key" == "DATABASE_URL" || "$key" == "DATABASE_URL_SYNC" ]] && continue
     printf '  %s: "%s"\n' "$key" "${VARS[$key]//\"/\\\"}"
   done
-  if [[ -n "${VARS[GOOGLE_API_KEY]:-}" || -n "${VARS[FIRECRAWL_API_KEY]:-}" ]]; then
+  if [[ -n "${VARS[GOOGLE_API_KEY]:-}" || -n "${VARS[FIRECRAWL_API_KEY]:-}" || -n "${VARS[DATABASE_URL]:-}" || -n "${VARS[DATABASE_URL_SYNC]:-}" ]]; then
     echo "appSecrets:"
+    if [[ -n "${VARS[DATABASE_URL]:-}" ]]; then
+      printf '  DATABASE_URL: "%s"\n' "${VARS[DATABASE_URL]//\"/\\\"}"
+    fi
+    if [[ -n "${VARS[DATABASE_URL_SYNC]:-}" ]]; then
+      printf '  DATABASE_URL_SYNC: "%s"\n' "${VARS[DATABASE_URL_SYNC]//\"/\\\"}"
+    fi
     if [[ -n "${VARS[GOOGLE_API_KEY]:-}" ]]; then
       printf '  GOOGLE_API_KEY: "%s"\n' "${VARS[GOOGLE_API_KEY]//\"/\\\"}"
     fi

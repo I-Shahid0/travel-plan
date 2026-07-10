@@ -9,11 +9,13 @@ import { readdir, readFile } from "node:fs/promises";
 import { join } from "node:path";
 import { Pool } from "pg";
 
+import { resolveSyncDatabaseUrl } from "../src/lib/database-url";
+
 const MIGRATIONS_DIR = join(import.meta.dir, "..", "migrations");
 
-const connectionString = process.env.DATABASE_URL;
+const connectionString = resolveSyncDatabaseUrl();
 if (!connectionString) {
-  console.error("DATABASE_URL is required (see apps/web/.env.example)");
+  console.error("DATABASE_URL is required in the repo root .env (see .env.example)");
   process.exit(1);
 }
 

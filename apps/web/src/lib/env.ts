@@ -1,3 +1,5 @@
+import { resolveSyncDatabaseUrl } from "@/lib/database-url";
+
 /**
  * Validated server-side environment. Accessors throw at first use with a
  * clear message instead of letting `undefined` leak into fetch URLs.
@@ -14,7 +16,7 @@ function serverEnv(name: string, fallback?: string): string {
   const value = process.env[name] ?? fallback;
   if (!value) {
     throw new Error(
-      `Missing required environment variable ${name} — see apps/web/.env.example`,
+      `Missing required environment variable ${name} — see repo root .env.example`,
     );
   }
   if (value.includes(BUILD_PLACEHOLDER) && process.env.NEXT_PHASE !== "phase-production-build") {
@@ -33,7 +35,7 @@ export const env = {
     return serverEnv("ITINERARY_API_URL", "http://localhost:8002");
   },
   get DATABASE_URL(): string {
-    return serverEnv("DATABASE_URL");
+    return serverEnv("DATABASE_URL", resolveSyncDatabaseUrl());
   },
   get BETTER_AUTH_SECRET(): string {
     return serverEnv("BETTER_AUTH_SECRET");

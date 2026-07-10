@@ -1,11 +1,37 @@
+from typing import Self
+
+from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+def _resolve_database_urls(primary: str, secondary: str) -> tuple[str, str]:
+    """Return (async SQLAlchemy URL, sync psycopg URL) from root .env vars."""
+    candidates = [u for u in (primary, secondary) if u]
+    if not candidates:
+        return "", ""
+
+    async_url = next((u for u in candidates if "+asyncpg" in u), None)
+    sync_url = next(
+        (u for u in candidates if u.startswith("postgresql") and "+asyncpg" not in u),
+        None,
+    )
+
+    if async_url and not sync_url:
+        sync_url = async_url.replace("postgresql+asyncpg://", "postgresql://", 1)
+    elif sync_url and not async_url:
+        async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+    elif not async_url and not sync_url:
+        sync_url = candidates[0]
+        async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
+
+    return async_url, sync_url
 
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
 
-    database_url: str = "postgresql+asyncpg://retrieval:retrieval@localhost:5432/retrieval"
-    database_url_sync: str = "postgresql://retrieval:retrieval@localhost:5432/retrieval"
+    database_url: str = ""
+    database_url_sync: str = ""
     data_dir: str = "data/archive"
     eval_split_cutoff: str = "2020-01-01"
     embedding_model: str = "sentence-transformers/all-MiniLM-L6-v2"
@@ -78,6 +104,13 @@ class Settings(BaseSettings):
     image_enrichment_write_enabled: bool = True
     image_enrichment_port: int = 8003
     firecrawl_api_key: str = ""
+
+    @model_validator(mode="after")
+    def _normalize_database_urls(self) -> Self:
+        async_url, sync_url = _resolve_database_urls(self.database_url, self.database_url_sync)
+        self.database_url = async_url
+        self.database_url_sync = sync_url
+        return self
 
 
 settings = Settings()

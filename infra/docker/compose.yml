@@ -115,8 +115,6 @@ services:
       - "8000:8000"
     environment:
       # Overrides .env localhost URLs for the compose network.
-      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
-      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
       REDIS_URL: redis://redis:6379/0
       RERANKER_URL: http://reranker:8001
       EMBEDDING_DEVICE: cpu
@@ -164,14 +162,14 @@ services:
       dockerfile: Dockerfile
     container_name: retrieval-web
     env_file:
-      # apps/web/.env carries BETTER_AUTH_SECRET; URLs below override for compose DNS
+      - path: ../../.env
+        required: false
       - path: ../../apps/web/.env
         required: false
     ports:
       - "3001:3001"
     environment:
       BETTER_AUTH_URL: http://localhost:3001
-      DATABASE_URL: postgresql://retrieval:retrieval@postgres:5432/retrieval
       QUERY_API_URL: http://query:8000
       ITINERARY_API_URL: http://itinerary:8002
       OTEL_ENABLED: "true"
@@ -219,8 +217,6 @@ services:
       - path: ../../.env
         required: false
     environment:
-      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
-      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
       REDIS_URL: redis://redis:6379/0
       EMBEDDING_DEVICE: cpu
       OTEL_ENABLED: "true"
@@ -249,8 +245,6 @@ services:
     ports:
       - "8003:8003"
     environment:
-      DATABASE_URL: postgresql+asyncpg://retrieval:retrieval@postgres:5432/retrieval
-      DATABASE_URL_SYNC: postgresql://retrieval:retrieval@postgres:5432/retrieval
       REDIS_URL: redis://redis:6379/0
       OTEL_ENABLED: "true"
       OTEL_SERVICE_NAME: image-enrichment-service

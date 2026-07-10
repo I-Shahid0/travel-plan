@@ -41,13 +41,11 @@ $vars["EMBEDDING_DEVICE"] = "cpu"
 $vars["RERANKER_DEVICE"] = "cpu"
 
 $secrets = @{}
-if ($vars.ContainsKey("GOOGLE_API_KEY") -and $vars["GOOGLE_API_KEY"]) {
-    $secrets["GOOGLE_API_KEY"] = $vars["GOOGLE_API_KEY"]
-    $vars.Remove("GOOGLE_API_KEY")
-}
-if ($vars.ContainsKey("FIRECRAWL_API_KEY") -and $vars["FIRECRAWL_API_KEY"]) {
-    $secrets["FIRECRAWL_API_KEY"] = $vars["FIRECRAWL_API_KEY"]
-    $vars.Remove("FIRECRAWL_API_KEY")
+foreach ($secretKey in @("DATABASE_URL", "DATABASE_URL_SYNC", "GOOGLE_API_KEY", "FIRECRAWL_API_KEY")) {
+    if ($vars.ContainsKey($secretKey) -and $vars[$secretKey]) {
+        $secrets[$secretKey] = $vars[$secretKey]
+        $vars.Remove($secretKey)
+    }
 }
 
 function Escape-Yaml([string]$Value) {
