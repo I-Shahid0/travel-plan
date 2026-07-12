@@ -17,9 +17,7 @@ logging.basicConfig(
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(
-        description="Consume image enrichment jobs from Redis queue"
-    )
+    parser = argparse.ArgumentParser(description="Consume image enrichment jobs from Redis queue")
     parser.add_argument(
         "--max-jobs",
         type=int,

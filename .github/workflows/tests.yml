@@ -1,0 +1,65 @@
+name: Tests
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - run: uv sync --frozen --group dev
+      - run: uv run ruff check src tests
+      - run: uv run ruff format --check src tests
+      - run: uv run pytest -q
+
+  web:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: apps/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+      - run: bun install --frozen-lockfile
+      - run: bun run typecheck
+      - run: bun test
+
+  # Pydantic -> OpenAPI JSON -> generated TS must be committed in lockstep
+  # (see `make generate-api`). Fails when schemas drift from committed output.
+  api-drift:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+      - uses: oven-sh/setup-bun@v2
+      - run: uv sync --frozen --group dev
+      - run: uv run python scripts/export_openapi.py
+        env:
+          RERANK_ENABLED: "false"
+          OTEL_ENABLED: "false"
+          METRICS_ENABLED: "false"
+          # engines are created at import time; the URL must parse, never connects
+          DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/test
+      - run: bun install --frozen-lockfile && bun run generate:api
+        working-directory: apps/web
+      - run: git diff --exit-code apps/web/openapi apps/web/src/lib/api
+
+  helm:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: helm lint infra/kubernetes/helm/retrieval-engine
+      - run: helm template infra/kubernetes/helm/retrieval-engine -f infra/kubernetes/helm/retrieval-engine/values-k3s.yaml > /dev/null

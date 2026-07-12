@@ -39,9 +39,7 @@ def test_cosine_similarity_bounds():
 
 def test_cosine_similarity_scale_invariant():
     a, b = [0.2, 0.9, -0.4], [1.1, -0.3, 0.7]
-    assert cosine_similarity(a, b) == pytest.approx(
-        cosine_similarity([x * 5 for x in a], b)
-    )
+    assert cosine_similarity(a, b) == pytest.approx(cosine_similarity([x * 5 for x in a], b))
 
 
 def test_recommendation_request_defaults():
