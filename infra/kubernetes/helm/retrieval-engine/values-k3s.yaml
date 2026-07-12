@@ -18,6 +18,7 @@ ingress:
     traefik.ingress.kubernetes.io/router.entrypoints: websecure
     traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
   hosts:
+    web: meridian.ishahid.pro
     query: api.ishahid.pro
     itinerary: itinerary.ishahid.pro
     grafana: grafana.ishahid.pro
@@ -42,6 +43,10 @@ keda:
     listLength: 5
 
 services:
+  # Meridian frontend — public at ingress.hosts.web. Needs BETTER_AUTH_SECRET
+  # (and the usual DATABASE_URL_SYNC) in the VPS .env.
+  web:
+    enabled: true
   reranker:
     resources:
       requests:

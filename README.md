@@ -277,14 +277,23 @@ which the deploy script applies). HTTP redirects to HTTPS.
 
 | URL | Service |
 |-----|---------|
+| https://meridian.ishahid.pro | **Meridian** — the product (search, browse, feed, plan) |
 | https://api.ishahid.pro | query API (`/docs`, `/search`, `/health/ready`) |
 | https://itinerary.ishahid.pro | itinerary API (`/docs`) |
 | https://grafana.ishahid.pro | Grafana — anonymous visitors get read-only dashboards |
 
-To go live: point DNS **A records** for `api`, `itinerary`, and `grafana`
-on `ishahid.pro` at the VPS IP, open ports 80/443, set
-`GRAFANA_ADMIN_PASSWORD` in the VPS `.env`, and deploy (certificates are
-issued on first request per host, so allow ~30s after DNS resolves).
+Meridian on k3s needs `BETTER_AUTH_SECRET` in the VPS `.env` (it flows into
+the chart's env Secret), and its Postgres tables once per database:
+`make web-auth-migrate && make web-db-migrate` against the same
+`DATABASE_URL_SYNC`. Traefik terminates TLS and routes straight to the web
+pod — the compose-only nginx edge (static-asset cache, per-IP rate limits)
+has no k3s equivalent yet.
+
+To go live: point DNS **A records** for `meridian`, `api`, `itinerary`, and
+`grafana` on `ishahid.pro` at the VPS IP, open ports 80/443, set
+`GRAFANA_ADMIN_PASSWORD` and `BETTER_AUTH_SECRET` in the VPS `.env`, and
+deploy (certificates are issued on first request per host, so allow ~30s
+after DNS resolves).
 The reranker and workers stay cluster-internal on purpose — nothing
 authenticates them, so they get no public route.
 
@@ -299,9 +308,10 @@ Two workflows in `.github/workflows/`, both runnable manually from the Actions t
   OpenAPI→TypeScript drift gate (fails if `make generate-api` output differs
   from what's committed), and helm lint/template.
 - **Deploy to VPS (k3s)** (`deploy-k3s.yml`) — manual dispatch only. Builds
-  the five service images on GitHub runners, pushes them to GHCR tagged with
-  the commit SHA, then SSHes into the VPS and runs `deploy-k3s.sh` with
-  `SKIP_BUILD=true` — the VPS only pulls images and rolls the Helm release.
+  the service images (five Python targets + Meridian web) on GitHub runners,
+  pushes them to GHCR tagged with the commit SHA, then SSHes into the VPS and
+  runs `deploy-k3s.sh` with `SKIP_BUILD=true` — the VPS only pulls images and
+  rolls the Helm release.
 
 Deploy configuration (repo **Settings → Secrets and variables → Actions**):
 

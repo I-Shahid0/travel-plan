@@ -1,6 +1,9 @@
 {{- if .Values.ingress.enabled }}
 {{- $fullname := include "retrieval-engine.fullname" . }}
 {{- $hosts := list }}
+{{- if and .Values.ingress.hosts.web .Values.services.web.enabled }}
+{{- $hosts = append $hosts (dict "host" .Values.ingress.hosts.web "service" (printf "%s-web" $fullname) "port" .Values.services.web.port) }}
+{{- end }}
 {{- if .Values.ingress.hosts.query }}
 {{- $hosts = append $hosts (dict "host" .Values.ingress.hosts.query "service" (printf "%s-query" $fullname) "port" .Values.services.query.port) }}
 {{- end }}

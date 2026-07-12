@@ -1,6 +1,7 @@
 name: Deploy to VPS (k3s)
 
-# Builds the five service images on GitHub runners, pushes them to GHCR,
+# Builds the service images (five Python targets + Meridian web) on GitHub
+# runners, pushes them to GHCR,
 # then SSHes to the VPS and runs deploy-k3s.sh with SKIP_BUILD=true so the
 # VPS only pulls images and rolls the Helm release — no docker build on the
 # 4GB box.
@@ -34,7 +35,7 @@ jobs:
       packages: write
     strategy:
       matrix:
-        target: [query, reranker, itinerary, worker, image-enrichment]
+        target: [query, reranker, itinerary, worker, image-enrichment, web]
     steps:
       - uses: actions/checkout@v4
       - id: owner
@@ -45,11 +46,13 @@ jobs:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # web (Meridian) has its own Dockerfile; the rest are targets in the
+      # shared multi-stage infra/docker/Dockerfile.
       - uses: docker/build-push-action@v6
         with:
-          context: .
-          file: infra/docker/Dockerfile
-          target: ${{ matrix.target }}
+          context: ${{ matrix.target == 'web' && 'apps/web' || '.' }}
+          file: ${{ matrix.target == 'web' && 'apps/web/Dockerfile' || 'infra/docker/Dockerfile' }}
+          target: ${{ matrix.target == 'web' && '' || matrix.target }}
           push: true
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/retrieval-${{ matrix.target }}:${{ github.sha }}

@@ -31,7 +31,18 @@ else
   IMAGE_TAG="prod-$(date +%Y%m%d%H%M%S)"
 fi
 
-TARGETS=(query reranker itinerary worker image-enrichment)
+TARGETS=(query reranker itinerary worker image-enrichment web)
+
+# web (Meridian) builds from its own Dockerfile; everything else is a target
+# in the shared multi-stage infra/docker/Dockerfile.
+build_image() {
+  local target="$1"
+  if [[ "$target" == "web" ]]; then
+    docker build -f "$ROOT/apps/web/Dockerfile" -t "$(image_name web)" "$ROOT/apps/web"
+  else
+    docker build -f "$ROOT/infra/docker/Dockerfile" --target "$target" -t "$(image_name "$target")" "$ROOT"
+  fi
+}
 
 # --- cluster access -----------------------------------------------------------
 if [[ -z "${KUBECONFIG:-}" && -r /etc/rancher/k3s/k3s.yaml ]]; then
@@ -63,7 +74,7 @@ if [[ "$SKIP_BUILD" != "true" ]]; then
   docker info >/dev/null
   echo "==> Building container images (tag=$IMAGE_TAG)"
   for target in "${TARGETS[@]}"; do
-    docker build -f "$ROOT/infra/docker/Dockerfile" --target "$target" -t "$(image_name "$target")" "$ROOT"
+    build_image "$target"
   done
 fi
 
@@ -107,6 +118,7 @@ VALUES_PROFILE="$CHART/values-$DEPLOY_PROFILE.yaml"
 bash "$ROOT/infra/kubernetes/scripts/load-env.sh" "$ROOT" "$VALUES_LOCAL" "$DEPLOY_PROFILE"
 
 INGRESS_ARGS=()
+[[ -n "${INGRESS_HOST_WEB:-}" ]] && INGRESS_ARGS+=(--set "ingress.hosts.web=$INGRESS_HOST_WEB")
 [[ -n "${INGRESS_HOST_QUERY:-}" ]] && INGRESS_ARGS+=(--set "ingress.hosts.query=$INGRESS_HOST_QUERY")
 [[ -n "${INGRESS_HOST_ITINERARY:-}" ]] && INGRESS_ARGS+=(--set "ingress.hosts.itinerary=$INGRESS_HOST_ITINERARY")
 [[ -n "${INGRESS_HOST_GRAFANA:-}" ]] && INGRESS_ARGS+=(--set "ingress.hosts.grafana=$INGRESS_HOST_GRAFANA")

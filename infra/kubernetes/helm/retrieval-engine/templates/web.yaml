@@ -1,0 +1,87 @@
+{{- if .Values.services.web.enabled }}
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-web
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  type: ClusterIP
+  ports:
+    - port: {{ .Values.services.web.port }}
+      targetPort: http
+      name: http
+  selector:
+    {{- include "retrieval-engine.selectorLabels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "retrieval-engine.fullname" . }}-web
+  labels:
+    {{- include "retrieval-engine.labels" . | nindent 4 }}
+    app.kubernetes.io/component: web
+spec:
+  replicas: {{ .Values.services.web.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "retrieval-engine.selectorLabels" . | nindent 6 }}
+      app.kubernetes.io/component: web
+  template:
+    metadata:
+      labels:
+        {{- include "retrieval-engine.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: web
+      annotations:
+        prometheus.io/scrape: "true"
+        prometheus.io/port: {{ .Values.services.web.port | quote }}
+        prometheus.io/path: /api/metrics
+    spec:
+      containers:
+        - name: web
+          image: {{ include "retrieval-engine.image" (dict "Values" .Values "imageName" "retrieval-web") }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.services.web.port }}
+              name: http
+          env:
+            # pg needs the plain postgres:// form — map the sync URL in.
+            - name: DATABASE_URL
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "retrieval-engine.fullname" . }}-env-secret
+                  key: DATABASE_URL_SYNC
+            - name: BETTER_AUTH_SECRET
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "retrieval-engine.fullname" . }}-env-secret
+                  key: BETTER_AUTH_SECRET
+            - name: BETTER_AUTH_URL
+              {{- if .Values.ingress.hosts.web }}
+              value: https://{{ .Values.ingress.hosts.web }}
+              {{- else }}
+              value: http://localhost:{{ .Values.services.web.port }}
+              {{- end }}
+            - name: QUERY_API_URL
+              value: http://{{ include "retrieval-engine.fullname" . }}-query:{{ .Values.services.query.port }}
+            - name: ITINERARY_API_URL
+              value: http://{{ include "retrieval-engine.fullname" . }}-itinerary:{{ .Values.services.itinerary.port }}
+            {{- if .Values.observability.otelCollector.enabled }}
+            - name: OTEL_ENABLED
+              value: "true"
+            - name: OTEL_SERVICE_NAME
+              value: meridian-web
+            # @vercel/otel exports OTLP over HTTP (4318), not gRPC (4317).
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: http://{{ include "retrieval-engine.fullname" . }}-otel-collector:4318
+            {{- end }}
+          readinessProbe:
+            tcpSocket:
+              port: http
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          resources:
+            {{- toYaml .Values.services.web.resources | nindent 12 }}
+{{- end }}
