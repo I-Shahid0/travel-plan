@@ -82,11 +82,27 @@ jobs:
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
           ssh -i ~/.ssh/deploy_key "$SSH_USER@$HOST" \
-            "OWNER='$OWNER' TAG='$TAG' PROFILE='$PROFILE' GHCR_TOKEN='$GHCR_TOKEN' APP_DIR='$APP_DIR' bash -s" <<'EOF'
+            "OWNER='$OWNER' REPO='${{ github.repository }}' TAG='$TAG' PROFILE='$PROFILE' GHCR_TOKEN='$GHCR_TOKEN' APP_DIR='$APP_DIR' bash -s" <<'EOF'
           set -euo pipefail
-          cd "${APP_DIR:-$HOME/travel-plan}"
+          APP_DIR="${APP_DIR:-$HOME/travel-plan}"
+
+          # First deploy: clone the repo onto the VPS.
+          if [ ! -d "$APP_DIR/.git" ]; then
+            echo "==> $APP_DIR missing; cloning $REPO"
+            git clone "https://github.com/$REPO.git" "$APP_DIR"
+          fi
+          cd "$APP_DIR"
           git fetch origin
           git checkout -f "$TAG"
+
+          # The chart's config comes from .env — refuse to deploy without it
+          # rather than shipping .env.example placeholders.
+          if [ ! -f .env ]; then
+            echo "error: $APP_DIR/.env missing." >&2
+            echo "  cp .env.example .env  # then set DATABASE_URL, DATABASE_URL_SYNC, REDIS_URL," >&2
+            echo "  GOOGLE_API_KEY, BETTER_AUTH_SECRET, GRAFANA_ADMIN_PASSWORD" >&2
+            exit 1
+          fi
 
           # Private GHCR packages: refresh the pull secret and attach it to the
           # default service account (the chart's pods all use it).
