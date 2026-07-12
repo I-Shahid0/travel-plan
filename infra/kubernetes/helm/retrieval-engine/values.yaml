@@ -110,6 +110,10 @@ observability:
   grafana:
     enabled: true
     image: grafana/grafana:11.1.0
+    # Local default is anonymous Admin for zero-friction dashboards. Public
+    # deployments (ingress host set) should use Viewer + a real adminPassword.
+    anonymousRole: Admin
+    adminPassword: admin
 
 # Requires the KEDA operator (deploy script installs it when enabled).
 keda:

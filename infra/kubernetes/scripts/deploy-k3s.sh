@@ -90,6 +90,10 @@ else
   PULL_POLICY="Never"
 fi
 
+# --- Traefik: Let's Encrypt resolver for the public ingress hosts ---------------
+echo "==> Applying Traefik ACME config (HelmChartConfig)"
+kubectl apply -f "$ROOT/infra/kubernetes/k3s/traefik-config.yaml"
+
 # --- KEDA (ScaledObject CRDs required by the chart) -----------------------------
 echo "==> Installing KEDA operator"
 helm repo add kedacore https://kedacore.github.io/charts >/dev/null 2>&1 || true
@@ -110,6 +114,12 @@ INGRESS_ARGS=()
 REGISTRY_ARGS=()
 [[ -n "$IMAGE_REGISTRY" ]] && REGISTRY_ARGS+=(--set "image.registry=$IMAGE_REGISTRY")
 
+# Grafana is public behind the ingress (anonymous = Viewer); take the admin
+# password from the environment or the VPS .env rather than the chart default.
+GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-$(sed -n 's/^GRAFANA_ADMIN_PASSWORD=//p' "$ROOT/.env" 2>/dev/null | head -n1)}"
+GRAFANA_ARGS=()
+[[ -n "$GRAFANA_ADMIN_PASSWORD" ]] && GRAFANA_ARGS+=(--set "observability.grafana.adminPassword=$GRAFANA_ADMIN_PASSWORD")
+
 echo "==> Deploying Helm chart (profile=$DEPLOY_PROFILE)"
 helm upgrade --install "$RELEASE" "$CHART" \
   -f "$VALUES_PROFILE" \
@@ -119,6 +129,7 @@ helm upgrade --install "$RELEASE" "$CHART" \
   --set image.pullPolicy="$PULL_POLICY" \
   "${INGRESS_ARGS[@]+"${INGRESS_ARGS[@]}"}" \
   "${REGISTRY_ARGS[@]+"${REGISTRY_ARGS[@]}"}" \
+  "${GRAFANA_ARGS[@]+"${GRAFANA_ARGS[@]}"}" \
   --wait --timeout 15m
 
 echo "==> Restarting workloads to pick up freshly loaded images"

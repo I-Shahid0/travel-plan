@@ -5,18 +5,32 @@
 # infra/kubernetes/scripts/deploy-k3s.sh does exactly that. DB (Neon) and Redis
 # (Upstash) stay external — the VPS only runs the app + observability pods.
 
-# Traefik ships with k3s; set the hosts you actually point DNS at.
+# Traefik ships with k3s; DNS A records for these must point at the VPS.
 # deploy-k3s.sh overrides these from INGRESS_HOST_QUERY / _ITINERARY / _GRAFANA.
+# TLS: certificates come from Traefik's Let's Encrypt resolver (configured by
+# infra/kubernetes/k3s/traefik-config.yaml, applied by deploy-k3s.sh) — the
+# certresolver annotation below is what turns it on; the chart's ingress.tls
+# secret block stays off. HTTP redirects to HTTPS at the entrypoint.
 ingress:
   enabled: true
   className: traefik
+  annotations:
+    traefik.ingress.kubernetes.io/router.entrypoints: websecure
+    traefik.ingress.kubernetes.io/router.tls.certresolver: letsencrypt
   hosts:
-    query: ""
-    itinerary: ""
-    grafana: ""
+    query: api.ishahid.pro
+    itinerary: itinerary.ishahid.pro
+    grafana: grafana.ishahid.pro
   tls:
     enabled: false
     secretName: ""
+
+# Grafana is public behind the ingress: anonymous visitors get read-only
+# dashboards; the admin password comes from GRAFANA_ADMIN_PASSWORD in the VPS
+# .env (deploy-k3s.sh passes it through; falls back to chart default if unset).
+observability:
+  grafana:
+    anonymousRole: Viewer
 
 # The VPS is RAM-constrained: keep single replicas and let KEDA scale the
 # worker to zero when the ingestion queue is idle.

@@ -265,9 +265,28 @@ INGRESS_HOST_QUERY=api.example.com IMAGE_REGISTRY=ghcr.io/you \
 ```
 
 Knobs (env vars): `DEPLOY_PROFILE`, `IMAGE_TAG` (reuse an existing build),
-`IMAGE_REGISTRY`, `SKIP_BUILD`, `INGRESS_HOST_QUERY|_ITINERARY|_GRAFANA`.
-Traefik (bundled with k3s) serves the `ingress.hosts.*` rules on :80/:443;
-enable `ingress.tls` in `values-k3s.yaml` once certificates exist.
+`IMAGE_REGISTRY`, `SKIP_BUILD`, `INGRESS_HOST_QUERY|_ITINERARY|_GRAFANA`,
+`GRAFANA_ADMIN_PASSWORD` (also read from the VPS `.env`).
+
+#### Public URLs (Traefik ingress + Let's Encrypt)
+
+`values-k3s.yaml` pins the production hosts; Traefik (bundled with k3s)
+serves them on :80/:443 and gets certificates automatically from Let's
+Encrypt (TLS-ALPN, configured by `infra/kubernetes/k3s/traefik-config.yaml`
+which the deploy script applies). HTTP redirects to HTTPS.
+
+| URL | Service |
+|-----|---------|
+| https://api.ishahid.pro | query API (`/docs`, `/search`, `/health/ready`) |
+| https://itinerary.ishahid.pro | itinerary API (`/docs`) |
+| https://grafana.ishahid.pro | Grafana — anonymous visitors get read-only dashboards |
+
+To go live: point DNS **A records** for `api`, `itinerary`, and `grafana`
+on `ishahid.pro` at the VPS IP, open ports 80/443, set
+`GRAFANA_ADMIN_PASSWORD` in the VPS `.env`, and deploy (certificates are
+issued on first request per host, so allow ~30s after DNS resolves).
+The reranker and workers stay cluster-internal on purpose — nothing
+authenticates them, so they get no public route.
 
 ---
 
@@ -293,7 +312,7 @@ Deploy configuration (repo **Settings → Secrets and variables → Actions**):
 | Secret | `VPS_SSH_KEY` | Private key (OpenSSH format) authorized on the VPS |
 | Secret | `GHCR_PULL_TOKEN` | *(optional)* PAT with `read:packages`; only while the GHCR images are private |
 | Variable | `VPS_APP_DIR` | *(optional)* repo checkout on the VPS (default `~/travel-plan`) |
-| Variable | `SMOKE_URL` | *(optional)* URL curled after deploy, e.g. `https://api.example.com/health/ready` |
+| Variable | `SMOKE_URL` | *(optional)* URL curled after deploy, e.g. `https://api.ishahid.pro/health/ready` |
 
 The tests workflow needs no secrets; image pushes use the built-in `GITHUB_TOKEN`.
 

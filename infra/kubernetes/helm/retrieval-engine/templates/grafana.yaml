@@ -84,9 +84,9 @@ spec:
             - name: GF_AUTH_ANONYMOUS_ENABLED
               value: "true"
             - name: GF_AUTH_ANONYMOUS_ORG_ROLE
-              value: Admin
+              value: {{ .Values.observability.grafana.anonymousRole | quote }}
             - name: GF_SECURITY_ADMIN_PASSWORD
-              value: admin
+              value: {{ .Values.observability.grafana.adminPassword | quote }}
           ports:
             - containerPort: 3000
               name: http
