@@ -156,13 +156,9 @@ async def _facets(session: AsyncSession, spec: dict) -> BrowseFacets:
     ).all()
 
     cat = func.unnest(Listing.categories).label("category")
-    cat_stmt = _apply_browse_filters(
-        select(cat, func.count()), spec, skip_category=True
-    )
+    cat_stmt = _apply_browse_filters(select(cat, func.count()), spec, skip_category=True)
     cat_rows = (
-        await session.execute(
-            cat_stmt.group_by(cat).order_by(func.count().desc()).limit(18)
-        )
+        await session.execute(cat_stmt.group_by(cat).order_by(func.count().desc()).limit(18))
     ).all()
 
     facets = BrowseFacets(
@@ -270,9 +266,7 @@ async def recommendations(
     seed_rows: dict[str, list[float]] = {}
     if seed_ids:
         rows = (
-            (await session.execute(select(Listing).where(Listing.id.in_(seed_ids))))
-            .scalars()
-            .all()
+            (await session.execute(select(Listing).where(Listing.id.in_(seed_ids)))).scalars().all()
         )
         by_id = {r.id: _as_list(r.embedding) for r in rows}
         # Preserve request order — it encodes recency for the decay weights.

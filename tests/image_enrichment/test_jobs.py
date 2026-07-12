@@ -92,9 +92,7 @@ def test_process_payload_runs_job(mock_run, mock_status):
     result = process_payload(raw)
     assert result["enqueued"] == 2
     mock_status.assert_any_call("job-1", "running", type="enrich-batch")
-    mock_status.assert_any_call(
-        "job-1", "completed", type="enrich-batch", result={"enqueued": 2}
-    )
+    mock_status.assert_any_call("job-1", "completed", type="enrich-batch", result={"enqueued": 2})
 
 
 @patch("retrieval_engine.image_enrichment.jobs.set_job_status")
@@ -174,9 +172,7 @@ def test_run_worker_processes_and_closes_breaker(mock_client_factory, mock_proce
     client = MagicMock()
     mock_client_factory.return_value = client
     client.llen.return_value = 1
-    payload = ImageEnrichmentJob(
-        id="j4", type=JobType.ENRICH_BATCH, params={}
-    ).to_payload()
+    payload = ImageEnrichmentJob(id="j4", type=JobType.ENRICH_BATCH, params={}).to_payload()
     client.brpop.return_value = (settings.image_enrichment_queue_key, payload)
     mock_process.return_value = {"ok": True}
 

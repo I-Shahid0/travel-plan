@@ -78,9 +78,7 @@ def _status_key(job_id: str) -> str:
 
 
 def _redis_client(*, socket_timeout: float | None = None) -> redis.Redis:
-    timeout = (
-        settings.redis_timeout_sec if socket_timeout is None else socket_timeout
-    )
+    timeout = settings.redis_timeout_sec if socket_timeout is None else socket_timeout
     return redis.from_url(settings.redis_url, socket_timeout=timeout)
 
 
@@ -274,20 +272,14 @@ def _handle_failure(client: redis.Redis, job: ImageEnrichmentJob, exc: Exception
 
 
 def run_worker(*, max_jobs: int | None = None) -> int:
-    client = _redis_client(
-        socket_timeout=settings.image_enrichment_worker_poll_timeout_sec + 10
-    )
+    client = _redis_client(socket_timeout=settings.image_enrichment_worker_poll_timeout_sec + 10)
     breaker = get_breaker(IMAGE_ENRICHMENT_BREAKER)
     processed = 0
-    logger.info(
-        "Image enrichment worker listening on %s", settings.image_enrichment_queue_key
-    )
+    logger.info("Image enrichment worker listening on %s", settings.image_enrichment_queue_key)
 
     while max_jobs is None or processed < max_jobs:
         with contextlib.suppress(redis.RedisError):
-            set_image_enrichment_queue_depth(
-                int(client.llen(settings.image_enrichment_queue_key))
-            )
+            set_image_enrichment_queue_depth(int(client.llen(settings.image_enrichment_queue_key)))
 
         if not breaker.ready_to_attempt():
             time.sleep(settings.image_enrichment_worker_poll_timeout_sec)
