@@ -2,9 +2,9 @@
 
 Personalized listing search & ranking for travel/experiences, built on the Yelp Open Dataset.
 
-The backend exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes). As of **Phase 9** it also ships a user-facing frontend: **Meridian** (`apps/web`), a Next.js app with end-to-end type safety from the FastAPI OpenAPI schemas and Better Auth accounts. **Phase 10** adds an nginx edge (caching + rate limiting), a behavioral recommendation feed built on a user event store, browse/history surfaces, and frontend observability (OTel traces + Prometheus metrics from the web app itself).
+The backend exposes APIs for retrieval, reranking, personalization, itinerary generation, offline evaluation, plus production-style observability (traces + metrics) and deployment (Docker Compose + Kubernetes). **Phase 8** adds asynchronous listing image enrichment (Firecrawl-backed worker on port `8003`). **Phase 9** ships the user-facing frontend: **Meridian** (`apps/web`), a Next.js app with end-to-end type safety from the FastAPI OpenAPI schemas and Better Auth accounts. **Phase 10** adds an nginx edge (caching + rate limiting), a behavioral recommendation feed built on a user event store, browse/history surfaces, and frontend observability (OTel traces + Prometheus metrics from the web app itself).
 
-For the full phase-by-phase development notes, see `ABOUT_ME.md`.
+For the full phase-by-phase development notes, see [ABOUT_ME.md](ABOUT_ME.md).
 
 ---
 
@@ -20,8 +20,9 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
    - Day-by-day itinerary generation from top-ranked listings (LLM isolated behind a fallback)
 4. `ingestion/worker`
    - Async ingest/embed/index jobs via Redis queue
-5. `image-enrichment-worker`
-   - Async listing image lookup (Firecrawl-first behind a provider seam), writes `primary_image_url` + provenance back to Postgres
+5. `image-enrichment-service` (FastAPI, port `8003`)
+   - Async listing image lookup via Firecrawl; writes `primary_image_url` + provenance to Postgres
+   - See [apps/image-enrichment-service/README.md](apps/image-enrichment-service/README.md)
 6. `web` — **Meridian** (Next.js, port `3001`)
    - Search, browse, recommendations, history, personalization, and trip planning UI
    - Better Auth accounts; typed clients generated from OpenAPI
@@ -65,6 +66,9 @@ Assuming services are running locally:
 - Reranker health: `http://localhost:8001/health`
 - (Likely) Reranker docs: `http://localhost:8001/docs`
 - Reranker metrics: `http://localhost:8001/metrics`
+
+- Image enrichment health: `http://localhost:8003/health`
+- Image enrichment metrics: `http://localhost:8003/metrics`
 
 Observability UIs:
 
@@ -175,7 +179,19 @@ Endpoint:
 
 Plus traces and metrics in Jaeger/Grafana when observability is enabled.
 
-### 6) Offline evaluation
+### 6) Enrich listing images (async)
+
+Enqueue work for the image-enrichment worker (`uv run serve-image-enrichment-worker` or the `image-enrichment` compose service):
+
+```bash
+uv run enqueue-image-job enrich-batch --limit 100
+uv run enqueue-image-job enrich-listing <listing-id>
+uv run enqueue-image-job status <job-id>
+```
+
+Requires `FIRECRAWL_API_KEY` in `.env`. Enriched `primary_image_url` values surface in search, browse, and listing pages once written.
+
+### 7) Offline evaluation
 
 - `GET http://localhost:8000/eval/split` (metadata for eval split)
 - CLI: `uv run eval` (writes eval results into `results/`)
@@ -194,14 +210,18 @@ Plus traces and metrics in Jaeger/Grafana when observability is enabled.
 
 ```bash
 docker compose -f infra/docker/compose.yml up -d
+# or: make compose-up
 ```
 
 Then open:
-- `http://localhost:8000/docs`
-- `http://localhost:8002/docs`
-- `http://localhost:16686` (Jaeger)
-- `http://localhost:3000` (Grafana)
-- `http://localhost:9090` (Prometheus)
+- **Meridian:** `http://localhost` (nginx edge) or `http://localhost:3001` (direct)
+- Query API docs: `http://localhost:8000/docs`
+- Itinerary docs: `http://localhost:8002/docs`
+- Jaeger: `http://localhost:16686`
+- Grafana: `http://localhost:3000`
+- Prometheus: `http://localhost:9090`
+
+Before using Meridian auth or `/foryou`, run `make web-auth-migrate` and `make web-db-migrate` against the same Postgres instance.
 
 ### Option B: Run services with `uv`
 
@@ -218,17 +238,25 @@ make obs-up
 # Load data (sample)
 uv run ingest --limit 5000
 
-# Start services
+# Start services (separate terminals)
 uv run serve
 uv run serve-reranker
 uv run serve-itinerary
 uv run serve-worker
+uv run serve-image-enrichment-worker   # optional — needs FIRECRAWL_API_KEY
+
+# Frontend (separate terminal)
+make web-install
+make web-auth-migrate
+make web-db-migrate
+make web-dev                           # http://localhost:3001
 ```
 
 Then:
 - Query: `http://localhost:8000/health`
 - Search: `http://localhost:8000/search?q=pizza`
 - OpenAPI: `http://localhost:8000/docs`
+- Meridian: `http://localhost:3001`
 
 ---
 
@@ -328,6 +356,21 @@ The tests workflow needs no secrets; image pushes use the built-in `GITHUB_TOKEN
 
 ---
 
+## Phase 8: listing image enrichment
+
+`image-enrichment-service` — queue-driven worker (port `8003`) that finds a primary
+image URL for listings missing one, via Firecrawl web search + page extraction.
+Results land on `listings.primary_image_url` with status/provenance columns;
+the query API and Meridian cards consume the field once enriched.
+
+```bash
+uv run serve-image-enrichment-worker
+uv run enqueue-image-job enrich-batch --limit 100
+curl http://localhost:8003/health
+```
+
+Set `FIRECRAWL_API_KEY` in `.env`. Details: [docs/handoff/phase-8.md](docs/handoff/phase-8.md) and [apps/image-enrichment-service/README.md](apps/image-enrichment-service/README.md).
+
 ## Phase 9: Meridian frontend
 
 `apps/web` — Next.js App Router with Server Components, running on bun:
@@ -373,16 +416,4 @@ Everything the backend learned in Phases 6–7 now applies to the frontend too:
   Grafana dashboard is auto-provisioned.
 
 Details: [docs/handoff/phase-10.md](docs/handoff/phase-10.md).
-
-## Phase 8: image enrichment
-
-An asynchronous `image-enrichment-worker` (implemented; the backfill hasn't
-been run against the corpus yet, so `primary_image_url` is still NULL) that:
-- selects listings missing `primary_image_url`
-- uses **Firecrawl-first** web lookup to find businesses and scrape/extract hero images
-- keeps Google/Maps as a fallback behind a provider seam
-- writes the final image URL plus enrichment status/provenance back into Postgres
-
-Run it: `uv run serve-image-enrichment-worker` (or the `image-enrichment`
-compose/Helm workload). Plan: `docs/handoff/phase-8.md`
 

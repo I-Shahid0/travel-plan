@@ -1,6 +1,6 @@
 # About Me (and Phase Notes)
 
-This file contains the original, phase-by-phase project README content from `README.md`.
+Phase-by-phase development history for this repo. The top-level [README.md](README.md) is the user-facing quick start; this file keeps the deeper per-phase notes.
 
 ---
 
@@ -67,21 +67,34 @@ Fraunces/Space Grotesk/IBM Plex Mono. Search with URL-state filters and
 retrieval-mode debugging, personalized ranking, LLM itineraries with budget
 verdicts. Details: `docs/handoff/phase-9.md`.
 
-## Phase 8 — Image enrichment worker
+## Phase 8 — Listing image enrichment
 
-A separate async worker (own container/Helm workload, Redis-queued like
-ingestion) that finds a `primary_image_url` for listings missing one:
-Firecrawl-first web lookup behind a provider seam, eligibility selection,
-persistence with status/provenance for retry and coverage measurement.
-Implemented and deployable; the corpus-wide backfill hasn't been run yet, so
-listing images remain NULL until it is. Plan: `docs/handoff/phase-8.md`.
+`image-enrichment-service` (port `8003`): asynchronous worker that selects
+listings missing `primary_image_url`, searches the web via **Firecrawl**,
+extracts a hero image, and writes URL + status/provenance back to Postgres.
+Jobs run on a dedicated Redis queue (`image_enrichment:jobs`); the query API
+and Meridian consume `primary_image_url` once enriched.
+
+```bash
+uv run serve-image-enrichment-worker
+uv run enqueue-image-job enrich-batch --limit 100
+uv run enqueue-image-job enrich-listing <listing-id>
+curl http://localhost:8003/health
+```
+
+Requires `FIRECRAWL_API_KEY`. Docker: `docker compose -f infra/docker/compose.yml up -d image-enrichment`.
+Details: `docs/handoff/phase-8.md`, `apps/image-enrichment-service/README.md`.
 
 ## Repo layout
 
 ```
 .github/workflows/     # CI (tests) + manual k3s VPS deploy
-apps/
-  web/                 # Meridian — Next.js frontend (bun)
+apps/                  # Per-service docs + Meridian frontend
+  query-service/
+  reranker-service/
+  itinerary-service/
+  image-enrichment-service/
+  web/                 # Meridian (Next.js, bun)
 data/
   archive/             # Yelp JSONL datasets (not committed)
 docs/
@@ -89,14 +102,15 @@ docs/
   handoff/             # Agent handoff notes between phases
   eval-split.md
 infra/
-  docker/              # Dockerfiles + compose stacks (local/external)
+  docker/              # Compose stacks (compose.yml → compose.local.yml)
   nginx/               # Edge proxy config (Phase 10)
   postgres/            # DB init scripts
+  kubernetes/          # Helm chart + deploy scripts
   otel/                # Collector config (tail sampling)
-  prometheus/ grafana/ # Scrape config + dashboards
-  kubernetes/          # Helm chart + minikube/k3s deploy scripts
+  prometheus/          # Scrape config
+  grafana/             # Dashboards + provisioning
 scripts/               # OpenAPI export, misc tooling
-src/retrieval_engine/  # Shared Python package (all backend services)
+src/retrieval_engine/  # Shared Python package (all services)
 tests/
 results/               # Eval history (baseline.json)
 ```
@@ -205,6 +219,7 @@ docker build -f infra/docker/Dockerfile --target query -t retrieval-query:latest
 docker build -f infra/docker/Dockerfile --target reranker -t retrieval-reranker:latest .
 docker build -f infra/docker/Dockerfile --target itinerary -t retrieval-itinerary:latest .
 docker build -f infra/docker/Dockerfile --target worker -t retrieval-worker:latest .
+docker build -f infra/docker/Dockerfile --target image-enrichment -t retrieval-image-enrichment:latest .
 ```
 
 Docker Compose stack (Postgres + Redis + Jaeger + all app services):
@@ -506,8 +521,5 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Status:** Phases 1–10 complete (see [docs/handoff/phase-10.md](docs/handoff/phase-10.md)).
-Outstanding: run the Phase 8 image-enrichment backfill against the corpus;
-next retrieval lever is collaborative filtering (Phase 4.5 showed the
-embedding-mean personalization signal has no headroom on this label design).
+**Current state (2026-07):** Phases 0–7 (backend), **8** (image enrichment), **9** (Meridian frontend), and **10** (edge + recommendations + frontend observability) are implemented. Handoff notes: `docs/handoff/phase-{8,9,10}.md`.
 
