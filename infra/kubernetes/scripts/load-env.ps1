@@ -23,46 +23,6 @@ function Read-DotEnv {
     return $result
 }
 
-function Parse-RedisUrl {
-    param([string]$Url)
-
-    $tls = $false
-    $rest = $Url
-    if ($Url.StartsWith("rediss://")) {
-        $tls = $true
-        $rest = $Url.Substring("rediss://".Length)
-    } elseif ($Url.StartsWith("redis://")) {
-        $rest = $Url.Substring("redis://".Length)
-    } else {
-        return $null
-    }
-
-    $slash = $rest.IndexOf("/")
-    if ($slash -ge 0) {
-        $rest = $rest.Substring(0, $slash)
-    }
-
-    $userpass = ""
-    $hostport = $rest
-    $at = $rest.IndexOf("@")
-    if ($at -ge 0) {
-        $userpass = $rest.Substring(0, $at)
-        $hostport = $rest.Substring($at + 1)
-    }
-
-    $password = ""
-    $colon = $userpass.IndexOf(":")
-    if ($colon -ge 0) {
-        $password = $userpass.Substring($colon + 1)
-    }
-
-    return [PSCustomObject]@{
-        Address  = $hostport
-        Password = $password
-        Tls      = $tls
-    }
-}
-
 $envPath = Join-Path $Root ".env"
 if (-not (Test-Path $envPath)) {
     $envPath = Join-Path $Root ".env.example"
@@ -76,16 +36,43 @@ if ($Profile -eq "local") {
     $vars["DATABASE_URL"] = "postgresql+asyncpg://retrieval:retrieval@${prefix}-postgres:5432/retrieval"
     $vars["DATABASE_URL_SYNC"] = "postgresql://retrieval:retrieval@${prefix}-postgres:5432/retrieval"
     $vars["REDIS_URL"] = "redis://${prefix}-redis:6379/0"
-    $vars["RERANKER_URL"] = "http://${prefix}-reranker:8001"
-    $vars["QUERY_SERVICE_URL"] = "http://${prefix}-query:8000"
-    $vars["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://${prefix}-otel-collector:4317"
-    $vars["EMBEDDING_DEVICE"] = "cpu"
-    $vars["RERANKER_DEVICE"] = "cpu"
 }
 
+# In-cluster service DNS — always rewrite (even when DB/Redis are external).
+$vars["RERANKER_URL"] = "http://${prefix}-reranker:8001"
+$vars["QUERY_SERVICE_URL"] = "http://${prefix}-query:8000"
+$vars["OTEL_EXPORTER_OTLP_ENDPOINT"] = "http://${prefix}-otel-collector:4317"
+$vars["EMBEDDING_DEVICE"] = "cpu"
+$vars["RERANKER_DEVICE"] = "cpu"
+
+# URL normalization lives in the Python package (single source of truth).
+# retrieval_engine.env_normalize prints KEY=VALUE lines for the vars it fixes.
 $externalRedis = $null
-if ($Profile -eq "external" -and $vars.ContainsKey("REDIS_URL") -and $vars["REDIS_URL"]) {
-    $externalRedis = Parse-RedisUrl $vars["REDIS_URL"]
+if ($Profile -eq "external") {
+    $env:DATABASE_URL = $vars["DATABASE_URL"]
+    $env:DATABASE_URL_SYNC = $vars["DATABASE_URL_SYNC"]
+    $env:REDIS_URL = $vars["REDIS_URL"]
+    try {
+        $normalized = @{}
+        foreach ($line in @(uv run --project $Root python -m retrieval_engine.env_normalize)) {
+            $idx = $line.IndexOf("=")
+            if ($idx -lt 1) { continue }
+            $normalized[$line.Substring(0, $idx)] = $line.Substring($idx + 1)
+        }
+    } finally {
+        Remove-Item Env:DATABASE_URL, Env:DATABASE_URL_SYNC, Env:REDIS_URL -ErrorAction SilentlyContinue
+    }
+
+    foreach ($key in @("DATABASE_URL", "DATABASE_URL_SYNC", "REDIS_URL")) {
+        if ($normalized.ContainsKey($key)) { $vars[$key] = $normalized[$key] }
+    }
+    if ($normalized.ContainsKey("REDIS_ADDRESS")) {
+        $externalRedis = [PSCustomObject]@{
+            Address  = $normalized["REDIS_ADDRESS"]
+            Password = $normalized["REDIS_PASSWORD"]
+            Tls      = ($normalized["REDIS_TLS"] -eq "true")
+        }
+    }
 }
 
 $secretKeys = @("DATABASE_URL", "DATABASE_URL_SYNC", "REDIS_URL", "GOOGLE_API_KEY", "FIRECRAWL_API_KEY")

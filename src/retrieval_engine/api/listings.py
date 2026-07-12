@@ -20,7 +20,6 @@ from retrieval_engine.api.schemas import (
     BrowseResponse,
     FacetValue,
     ListingDetail,
-    ListingResult,
     RecommendationRequest,
     RecommendationResponse,
     SimilarResponse,
@@ -90,7 +89,9 @@ def _browse_filters(
     }
 
 
-def _apply_browse_filters(stmt, spec: dict, *, skip_city: bool = False, skip_category: bool = False):
+def _apply_browse_filters(
+    stmt, spec: dict, *, skip_city: bool = False, skip_category: bool = False
+):
     filters: SearchFilters = spec["filters"]
     effective = SearchFilters(
         price_max=filters.price_max,

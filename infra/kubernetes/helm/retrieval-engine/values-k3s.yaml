@@ -1,0 +1,38 @@
+# k3s production profile (single-node VPS). Layer this AFTER values-external.yaml:
+#
+#   helm upgrade --install retrieval . -f values-external.yaml -f values-k3s.yaml ...
+#
+# infra/kubernetes/scripts/deploy-k3s.sh does exactly that. DB (Neon) and Redis
+# (Upstash) stay external — the VPS only runs the app + observability pods.
+
+# Traefik ships with k3s; set the hosts you actually point DNS at.
+# deploy-k3s.sh overrides these from INGRESS_HOST_QUERY / _ITINERARY / _GRAFANA.
+ingress:
+  enabled: true
+  className: traefik
+  hosts:
+    query: ""
+    itinerary: ""
+    grafana: ""
+  tls:
+    enabled: false
+    secretName: ""
+
+# The VPS is RAM-constrained: keep single replicas and let KEDA scale the
+# worker to zero when the ingestion queue is idle.
+keda:
+  enabled: true
+  worker:
+    minReplicas: 0
+    maxReplicas: 1
+    listLength: 5
+
+services:
+  reranker:
+    resources:
+      requests:
+        cpu: 250m
+        memory: 512Mi
+      limits:
+        cpu: "1"
+        memory: 1536Mi

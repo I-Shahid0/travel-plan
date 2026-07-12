@@ -9,6 +9,7 @@ function Invoke-External {
     param(
         [Parameter(Mandatory)]
         [scriptblock]$Command,
+        [string]$Label = "Command",
         [switch]$AllowFailure
     )
 
@@ -17,7 +18,7 @@ function Invoke-External {
     try {
         & $Command
         if (-not $AllowFailure -and $LASTEXITCODE -ne 0) {
-            throw "Command failed with exit code $LASTEXITCODE"
+            throw "${Label} failed with exit code $LASTEXITCODE"
         }
         return $LASTEXITCODE
     } finally {
@@ -139,8 +140,8 @@ function Ensure-Minikube {
         docker info *> $null
     } | Out-Null
 
-    $cpus = if ($env:MINIKUBE_CPUS) { [int]$env:MINIKUBE_CPUS } else { 4 }
-    $memory = if ($env:MINIKUBE_MEMORY) { [int]$env:MINIKUBE_MEMORY } else { 6144 }
+    $cpus = if ($env:MINIKUBE_CPUS) { [int]$env:MINIKUBE_CPUS } else { 2 }
+    $memory = if ($env:MINIKUBE_MEMORY) { [int]$env:MINIKUBE_MEMORY } else { 4096 }
 
     $health = Get-MinikubeHealth $Profile
     if ($health -eq "healthy") {
@@ -225,6 +226,7 @@ $staleKinds = @("deployment", "service", "statefulset", "horizontalpodautoscaler
 foreach ($kind in $staleKinds) {
     $lines = @(Get-NativeOutput { kubectl get $kind -o name 2>$null })
     foreach ($name in $lines) {
+        if ([string]::IsNullOrWhiteSpace($name)) { continue }
         if ($name -notlike "*/retrieval-retrieval-engine-*") { continue }
         Write-Host "    deleting $name"
         Invoke-External -AllowFailure {
@@ -235,7 +237,7 @@ foreach ($kind in $staleKinds) {
 
 Write-Host "==> Deploying Helm chart (profile=$DeployProfile)"
 $bootstrapIngest = if ($DeployProfile -eq "local") { "true" } else { "false" }
-Invoke-External {
+Invoke-External -Label "helm upgrade --install" {
     helm upgrade --install $Release $Chart `
         -f $ValuesProfile `
         -f $ValuesLocal `

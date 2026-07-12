@@ -3,28 +3,12 @@ from typing import Self
 from pydantic import model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
-def _resolve_database_urls(primary: str, secondary: str) -> tuple[str, str]:
-    """Return (async SQLAlchemy URL, sync psycopg URL) from root .env vars."""
-    candidates = [u for u in (primary, secondary) if u]
-    if not candidates:
-        return "", ""
-
-    async_url = next((u for u in candidates if "+asyncpg" in u), None)
-    sync_url = next(
-        (u for u in candidates if u.startswith("postgresql") and "+asyncpg" not in u),
-        None,
-    )
-
-    if async_url and not sync_url:
-        sync_url = async_url.replace("postgresql+asyncpg://", "postgresql://", 1)
-    elif sync_url and not async_url:
-        async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-    elif not async_url and not sync_url:
-        sync_url = candidates[0]
-        async_url = sync_url.replace("postgresql://", "postgresql+asyncpg://", 1)
-
-    return async_url, sync_url
+from retrieval_engine.db_url import (
+    normalize_async_db_url,
+    normalize_sync_db_url,
+    resolve_database_urls,
+)
+from retrieval_engine.redis_url import normalize_redis_url
 
 
 class Settings(BaseSettings):
@@ -106,10 +90,11 @@ class Settings(BaseSettings):
     firecrawl_api_key: str = ""
 
     @model_validator(mode="after")
-    def _normalize_database_urls(self) -> Self:
-        async_url, sync_url = _resolve_database_urls(self.database_url, self.database_url_sync)
-        self.database_url = async_url
-        self.database_url_sync = sync_url
+    def _normalize_connection_urls(self) -> Self:
+        async_url, sync_url = resolve_database_urls(self.database_url, self.database_url_sync)
+        self.database_url = normalize_async_db_url(async_url)
+        self.database_url_sync = normalize_sync_db_url(sync_url)
+        self.redis_url = normalize_redis_url(self.redis_url)
         return self
 
 

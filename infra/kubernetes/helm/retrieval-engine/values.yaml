@@ -152,3 +152,17 @@ nodePort:
   query: 30079
   itinerary: 30081
   grafana: 30030
+
+# Host-based ingress (k3s ships Traefik as the default class). A rule is only
+# rendered for hosts that are set; leave a host empty to keep it private.
+ingress:
+  enabled: false
+  className: traefik
+  annotations: {}
+  hosts:
+    query: "" # e.g. api.example.com
+    itinerary: "" # e.g. itinerary.example.com
+    grafana: "" # e.g. grafana.example.com
+  tls:
+    enabled: false
+    secretName: "" # cert-manager-provisioned or manually created TLS secret

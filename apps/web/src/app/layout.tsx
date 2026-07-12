@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Fraunces, IBM_Plex_Mono, Space_Grotesk } from "next/font/google";
 import type { ReactNode } from "react";
 
+import { CommandPalette } from "@/components/command-palette";
 import { Footer } from "@/components/footer";
 import { Nav } from "@/components/nav";
 
@@ -50,6 +51,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
           }}
         />
         <Nav />
+        <CommandPalette />
         <main className="relative z-10">{children}</main>
         <Footer />
       </body>

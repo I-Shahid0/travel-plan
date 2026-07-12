@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { PaletteTrigger } from "@/components/command-palette";
 import { CompassRose } from "@/components/compass";
 import { SignOutButton } from "@/components/sign-out-button";
 import { getSession } from "@/lib/session";
@@ -21,6 +22,7 @@ export async function Nav() {
         </Link>
 
         <nav className="flex min-w-0 items-center gap-0.5 sm:gap-1.5" aria-label="Primary">
+          <PaletteTrigger />
           <Link
             href="/search"
             className="voice-etch rounded-full px-1.5 py-2 transition-colors hover:text-starlight sm:px-3"

@@ -48,17 +48,17 @@ spec:
               value: ingestion-worker
             - name: WORKER_METRICS_PORT
               value: "9100"
+          {{- /* REDIS_URL (from envFrom secrets) points at the in-cluster
+               Redis for the local profile and the managed instance for the
+               external profile, so one probe covers both. */}}
           startupProbe:
             exec:
               command:
                 - python
                 - -c
                 - |
-                  import redis
-                  r = redis.from_url(
-                      "redis://{{ include "retrieval-engine.redisHost" . }}:{{ .Values.redis.port }}/0",
-                      socket_connect_timeout=5,
-                  )
+                  import os, redis
+                  r = redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=5)
                   r.ping()
             periodSeconds: 10
             timeoutSeconds: 10
@@ -69,11 +69,8 @@ spec:
                 - python
                 - -c
                 - |
-                  import redis
-                  r = redis.from_url(
-                      "redis://{{ include "retrieval-engine.redisHost" . }}:{{ .Values.redis.port }}/0",
-                      socket_connect_timeout=5,
-                  )
+                  import os, redis
+                  r = redis.from_url(os.environ["REDIS_URL"], socket_connect_timeout=5)
                   r.ping()
             periodSeconds: 30
             timeoutSeconds: 10

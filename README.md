@@ -232,7 +232,7 @@ Then:
 
 ## Deployment (Kubernetes)
 
-Use minikube + Helm:
+Local development uses minikube + Helm:
 
 ```bash
 make k8s-deploy
@@ -245,6 +245,27 @@ Expose the query API for curl/k6 (port-forward is the stable option):
 kubectl port-forward svc/retrieval-query 8000:8000
 curl http://localhost:8000/health
 ```
+
+### Production (k3s)
+
+The prod VPS runs [k3s](https://k3s.io) — same Helm chart, no VM layer.
+`deploy-k3s.sh` builds the images, imports them into k3s's containerd
+(`k3s ctr images import`), installs KEDA, and deploys with the external
+profile (Neon Postgres + Upstash Redis from `.env`) layered with
+`values-k3s.yaml` (Traefik ingress, VPS-sized resources, scale-to-zero
+ingestion worker):
+
+```bash
+make k8s-deploy-k3s
+# or with host rules + a registry instead of local image import:
+INGRESS_HOST_QUERY=api.example.com IMAGE_REGISTRY=ghcr.io/you \
+  bash infra/kubernetes/scripts/deploy-k3s.sh
+```
+
+Knobs (env vars): `DEPLOY_PROFILE`, `IMAGE_TAG` (reuse an existing build),
+`IMAGE_REGISTRY`, `SKIP_BUILD`, `INGRESS_HOST_QUERY|_ITINERARY|_GRAFANA`.
+Traefik (bundled with k3s) serves the `ingress.hosts.*` rules on :80/:443;
+enable `ingress.tls` in `values-k3s.yaml` once certificates exist.
 
 ---
 
