@@ -8,6 +8,21 @@ This file contains the original, phase-by-phase project README content from `REA
 
 Personalized listing search & ranking engine (Yelp Open Dataset → travel/experiences framing).
 
+## CI/CD — GitHub Actions (2026-07-12)
+
+- **`tests.yml`** (push/PR/dispatch): python (ruff + pytest), web (typecheck +
+  `bun test`), an OpenAPI→TS drift gate (the check the Makefile documented but
+  CI never enforced), helm lint/template. Getting it green surfaced two latent
+  issues: five files failing `ruff format --check`, and engines built at import
+  time (`db/session.py`) meaning the suite couldn't even collect without a
+  `.env` — fixed with a synthetic `DATABASE_URL` default in `tests/conftest.py`.
+- **`deploy-k3s.yml`** (dispatch): builds the five service images on GitHub
+  runners with buildx layer caching, pushes to GHCR tagged with the commit SHA,
+  then SSHes to the VPS and reuses `deploy-k3s.sh` with `SKIP_BUILD=true` — the
+  4GB VPS never builds an image. Optional GHCR pull-secret bootstrap for
+  private packages and a post-deploy smoke curl. Secrets documented in the
+  README's CI/CD section.
+
 ## Phase 10 — Edge, recommendations & frontend observability
 
 The frontend gets the production treatment the backend earned in Phases 5–7:
@@ -52,11 +67,21 @@ Fraunces/Space Grotesk/IBM Plex Mono. Search with URL-state filters and
 retrieval-mode debugging, personalized ranking, LLM itineraries with budget
 verdicts. Details: `docs/handoff/phase-9.md`.
 
+## Phase 8 — Image enrichment worker
+
+A separate async worker (own container/Helm workload, Redis-queued like
+ingestion) that finds a `primary_image_url` for listings missing one:
+Firecrawl-first web lookup behind a provider seam, eligibility selection,
+persistence with status/provenance for retry and coverage measurement.
+Implemented and deployable; the corpus-wide backfill hasn't been run yet, so
+listing images remain NULL until it is. Plan: `docs/handoff/phase-8.md`.
+
 ## Repo layout
 
 ```
-apps/                  # Per-service docs (containers land in Phase 5)
-  query-service/
+.github/workflows/     # CI (tests) + manual k3s VPS deploy
+apps/
+  web/                 # Meridian — Next.js frontend (bun)
 data/
   archive/             # Yelp JSONL datasets (not committed)
 docs/
@@ -64,11 +89,16 @@ docs/
   handoff/             # Agent handoff notes between phases
   eval-split.md
 infra/
-  docker/              # Local Postgres + pgvector
+  docker/              # Dockerfiles + compose stacks (local/external)
+  nginx/               # Edge proxy config (Phase 10)
   postgres/            # DB init scripts
-  kubernetes/          # Helm chart + minikube deploy scripts
-src/retrieval_engine/  # Shared Python package (query + ingestion for now)
+  otel/                # Collector config (tail sampling)
+  prometheus/ grafana/ # Scrape config + dashboards
+  kubernetes/          # Helm chart + minikube/k3s deploy scripts
+scripts/               # OpenAPI export, misc tooling
+src/retrieval_engine/  # Shared Python package (all backend services)
 tests/
+results/               # Eval history (baseline.json)
 ```
 
 ## Phase 7 — Stretch (tail-based sampling, Corpus operator)
@@ -476,5 +506,8 @@ See [docs/eval-split.md](docs/eval-split.md) for details.
 
 Full phase plan: [docs/plans/retrieval-engine-dev-plan.md](docs/plans/retrieval-engine-dev-plan.md)
 
-**Next agent:** Phase 7 (stretch) is complete — see [docs/handoff/phase-7.md](docs/handoff/phase-7.md).
+**Status:** Phases 1–10 complete (see [docs/handoff/phase-10.md](docs/handoff/phase-10.md)).
+Outstanding: run the Phase 8 image-enrichment backfill against the corpus;
+next retrieval lever is collaborative filtering (Phase 4.5 showed the
+embedding-mean personalization signal has no headroom on this label design).
 

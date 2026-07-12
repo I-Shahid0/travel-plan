@@ -20,17 +20,19 @@ For the full phase-by-phase development notes, see `ABOUT_ME.md`.
    - Day-by-day itinerary generation from top-ranked listings (LLM isolated behind a fallback)
 4. `ingestion/worker`
    - Async ingest/embed/index jobs via Redis queue
-5. `web` — **Meridian** (Next.js, port `3001`)
+5. `image-enrichment-worker`
+   - Async listing image lookup (Firecrawl-first behind a provider seam), writes `primary_image_url` + provenance back to Postgres
+6. `web` — **Meridian** (Next.js, port `3001`)
    - Search, browse, recommendations, history, personalization, and trip planning UI
    - Better Auth accounts; typed clients generated from OpenAPI
    - Emits OTel traces + Prometheus metrics like the Python services
    - See [apps/web/README.md](apps/web/README.md)
-6. `proxy` — nginx edge (port `80`)
+7. `proxy` — nginx edge (port `80`)
    - Reverse proxy in front of Meridian (no domain yet — `http://localhost`)
    - Edge caching for immutable build assets, per-IP rate limiting (stricter on
      credential endpoints), security headers
    - `proxy-exporter` publishes nginx metrics to Prometheus
-7. Observability stack (when enabled)
+8. Observability stack (when enabled)
    - Jaeger UI (`16686`)
    - Grafana (`3000`)
    - Prometheus (`9090`)
@@ -269,6 +271,34 @@ enable `ingress.tls` in `values-k3s.yaml` once certificates exist.
 
 ---
 
+## CI/CD (GitHub Actions)
+
+Two workflows in `.github/workflows/`, both runnable manually from the Actions tab:
+
+- **Tests** (`tests.yml`) — runs on every push to master and on PRs. Four
+  parallel jobs: python (ruff + pytest), web (typecheck + `bun test`), an
+  OpenAPI→TypeScript drift gate (fails if `make generate-api` output differs
+  from what's committed), and helm lint/template.
+- **Deploy to VPS (k3s)** (`deploy-k3s.yml`) — manual dispatch only. Builds
+  the five service images on GitHub runners, pushes them to GHCR tagged with
+  the commit SHA, then SSHes into the VPS and runs `deploy-k3s.sh` with
+  `SKIP_BUILD=true` — the VPS only pulls images and rolls the Helm release.
+
+Deploy configuration (repo **Settings → Secrets and variables → Actions**):
+
+| Kind | Name | Purpose |
+|------|------|---------|
+| Secret | `VPS_HOST` | VPS hostname or IP |
+| Secret | `VPS_USER` | SSH user on the VPS |
+| Secret | `VPS_SSH_KEY` | Private key (OpenSSH format) authorized on the VPS |
+| Secret | `GHCR_PULL_TOKEN` | *(optional)* PAT with `read:packages`; only while the GHCR images are private |
+| Variable | `VPS_APP_DIR` | *(optional)* repo checkout on the VPS (default `~/travel-plan`) |
+| Variable | `SMOKE_URL` | *(optional)* URL curled after deploy, e.g. `https://api.example.com/health/ready` |
+
+The tests workflow needs no secrets; image pushes use the built-in `GITHUB_TOKEN`.
+
+---
+
 ## Phase 9: Meridian frontend
 
 `apps/web` — Next.js App Router with Server Components, running on bun:
@@ -315,13 +345,15 @@ Everything the backend learned in Phases 6–7 now applies to the frontend too:
 
 Details: [docs/handoff/phase-10.md](docs/handoff/phase-10.md).
 
-## Phase 8 (planned): image enrichment
+## Phase 8: image enrichment
 
-Phase 8 adds a new asynchronous `image-enrichment-service` that:
+An asynchronous `image-enrichment-worker` (implemented; the backfill hasn't
+been run against the corpus yet, so `primary_image_url` is still NULL) that:
 - selects listings missing `primary_image_url`
 - uses **Firecrawl-first** web lookup to find businesses and scrape/extract hero images
-- optionally uses Google/Maps as a fallback behind a provider seam
+- keeps Google/Maps as a fallback behind a provider seam
 - writes the final image URL plus enrichment status/provenance back into Postgres
 
-Plan: `docs/handoff/phase-8.md`
+Run it: `uv run serve-image-enrichment-worker` (or the `image-enrichment`
+compose/Helm workload). Plan: `docs/handoff/phase-8.md`
 
