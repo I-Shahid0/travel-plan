@@ -38,6 +38,15 @@ VARS["RERANKER_DEVICE"]="cpu"
 
 # URL normalization lives in the Python package (single source of truth).
 # retrieval_engine.env_normalize prints KEY=VALUE lines for the vars it fixes.
+# The module is stdlib-only, so plain python3 works where uv isn't installed
+# (e.g. the production VPS).
+normalize_env() {
+  if command -v uv >/dev/null; then
+    uv run --project "$ROOT" python -m retrieval_engine.env_normalize
+  else
+    PYTHONPATH="$ROOT/src" python3 -m retrieval_engine.env_normalize
+  fi
+}
 EXTERNAL_REDIS_ADDRESS=""
 EXTERNAL_REDIS_PASSWORD=""
 EXTERNAL_REDIS_TLS="false"
@@ -55,7 +64,7 @@ if [[ "$PROFILE" == "external" ]]; then
     DATABASE_URL="${VARS[DATABASE_URL]:-}" \
     DATABASE_URL_SYNC="${VARS[DATABASE_URL_SYNC]:-}" \
     REDIS_URL="${VARS[REDIS_URL]:-}" \
-    uv run --project "$ROOT" python -m retrieval_engine.env_normalize
+    normalize_env
   )
 fi
 

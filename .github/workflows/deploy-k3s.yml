@@ -81,7 +81,11 @@ jobs:
           printf '%s\n' "$SSH_KEY" > ~/.ssh/deploy_key
           chmod 600 ~/.ssh/deploy_key
           ssh-keyscan -H "$HOST" >> ~/.ssh/known_hosts
-          ssh -i ~/.ssh/deploy_key "$SSH_USER@$HOST" \
+          # Keepalives: helm --wait is silent for minutes; without them the
+          # idle connection gets dropped mid-deploy (broken pipe).
+          ssh -i ~/.ssh/deploy_key \
+            -o ServerAliveInterval=30 -o ServerAliveCountMax=20 \
+            "$SSH_USER@$HOST" \
             "OWNER='$OWNER' REPO='${{ github.repository }}' TAG='$TAG' PROFILE='$PROFILE' GHCR_TOKEN='$GHCR_TOKEN' APP_DIR='$APP_DIR' bash -s" <<'EOF'
           set -euo pipefail
           APP_DIR="${APP_DIR:-$HOME/travel-plan}"

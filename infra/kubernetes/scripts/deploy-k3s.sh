@@ -138,6 +138,18 @@ GRAFANA_ADMIN_PASSWORD="${GRAFANA_ADMIN_PASSWORD:-$(sed -n 's/^GRAFANA_ADMIN_PAS
 GRAFANA_ARGS=()
 [[ -n "$GRAFANA_ADMIN_PASSWORD" ]] && GRAFANA_ARGS+=(--set "observability.grafana.adminPassword=$GRAFANA_ADMIN_PASSWORD")
 
+# An interrupted previous deploy (dropped SSH, ctrl-C) leaves the release in
+# pending-*; helm refuses further operations until it's cleared.
+STUCK=$(helm status "$RELEASE" -o json 2>/dev/null | grep -o '"status":"pending-[a-z]*"' || true)
+if [[ -n "$STUCK" ]]; then
+  echo "==> Release $RELEASE is stuck ($STUCK) from an interrupted deploy; recovering"
+  if helm history "$RELEASE" 2>/dev/null | grep -q deployed; then
+    helm rollback "$RELEASE" --wait --timeout 5m || true
+  else
+    helm uninstall "$RELEASE" --wait || true
+  fi
+fi
+
 echo "==> Deploying Helm chart (profile=$DEPLOY_PROFILE)"
 helm upgrade --install "$RELEASE" "$CHART" \
   -f "$VALUES_PROFILE" \
