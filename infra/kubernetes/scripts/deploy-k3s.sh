@@ -101,6 +101,12 @@ else
   PULL_POLICY="Never"
 fi
 
+# --- helm (k3s bundles kubectl but not helm) ------------------------------------
+if ! command -v helm >/dev/null; then
+  echo "==> helm not found; installing"
+  curl -fsSL https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3 | bash
+fi
+
 # --- Traefik: Let's Encrypt resolver for the public ingress hosts ---------------
 echo "==> Applying Traefik ACME config (HelmChartConfig)"
 kubectl apply -f "$ROOT/infra/kubernetes/k3s/traefik-config.yaml"
