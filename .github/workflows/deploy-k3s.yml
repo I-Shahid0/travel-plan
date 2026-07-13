@@ -52,7 +52,8 @@ jobs:
         with:
           context: ${{ matrix.target == 'web' && 'apps/web' || '.' }}
           file: ${{ matrix.target == 'web' && 'apps/web/Dockerfile' || 'infra/docker/Dockerfile' }}
-          target: ${{ matrix.target == 'web' && '' || matrix.target }}
+          # '' is falsy in Actions expressions, so name web's final stage explicitly
+          target: ${{ matrix.target == 'web' && 'runtime' || matrix.target }}
           push: true
           tags: |
             ghcr.io/${{ steps.owner.outputs.owner }}/retrieval-${{ matrix.target }}:${{ github.sha }}
